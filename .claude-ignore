@@ -1,0 +1,208 @@
+# .claude-ignore - Files and directories to exclude from Claude Code analysis
+# Place this in your Magento 2 project root directory
+
+# Vendor Dependencies (too large and not project-specific)
+/vendor/
+/node_modules/
+
+# Generated and Cache Files
+/var/
+/generated/
+/pub/static/
+/pub/media/
+/.magento/
+
+# Development and IDE Files
+/.idea/
+/.vscode/
+/.phpstorm.meta.php
+/_ide_helper.php
+/.php_cs.cache
+/.php_cs
+/.phpunit.result.cache
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# Log Files
+*.log
+/var/log/
+/pub/errors/local.xml
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+#*#
+
+# Backup Files
+*.bak
+*.backup
+*.orig
+*.rej
+*.old
+
+# Environment and Configuration Files (contain sensitive data)
+/app/etc/env.php
+/app/etc/config.php
+.env
+.env.local
+.env.*.local
+
+# Compiled Assets
+/pub/static/*
+!/pub/static/.htaccess
+/var/view_preprocessed/
+/var/cache/
+/var/page_cache/
+/var/session/
+/var/tmp/
+
+# Composer
+/auth.json
+/composer.lock
+
+# Documentation that's too large
+/vendor/*/README*
+/vendor/*/CHANGELOG*
+/vendor/*/LICENSE*
+/vendor/*/CONTRIBUTING*
+/vendor/*/docs/
+/vendor/*/documentation/
+
+# Large Binary Files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.jar
+*.war
+*.ear
+*.sar
+*.class
+
+# Image Files (usually not needed for code analysis)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.ico
+*.svg
+*.webp
+*.bmp
+*.tiff
+
+# Font Files
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.eot
+
+# Audio/Video Files
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.wav
+*.ogg
+
+# Database Files
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# Archive Files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Magento Sample Data
+/var/import_history/
+/var/import/
+/var/export/
+
+# Magento Generated Code
+/generated/code/
+/generated/metadata/
+
+# Test Coverage Reports
+/coverage/
+/tests/coverage/
+/.coverage
+/htmlcov/
+
+# NPM/Yarn
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker
+/.docker/
+/docker-compose.override.yml
+
+# Deployment
+/deploy.log
+/deployment/
+
+# Magento Cloud
+/.magento.app.yaml
+/.magento/
+/.magento.env.yaml
+
+# PhpStorm
+/.idea/workspace.xml
+/.idea/tasks.xml
+/.idea/dictionaries
+/.idea/vcs.xml
+/.idea/jsLibraryMappings.xml
+
+# Large Third-party Libraries Documentation
+/vendor/*/test/
+/vendor/*/tests/
+/vendor/*/Test/
+/vendor/*/Tests/
+/vendor/*/spec/
+/vendor/*/specs/
+
+# Magento Translation Files (can be large)
+/vendor/magento/language-*/
+
+# Large Magento Core Modules (focus on custom code)
+/vendor/magento/module-*/Test/
+/vendor/magento/framework/Test/
+
+# Large JavaScript Libraries
+/lib/web/jquery/
+/lib/web/knockoutjs/
+/lib/web/requirejs/
+/lib/web/underscore/
+
+# Minified Files
+*.min.js
+*.min.css
+
+# Source Maps
+*.map
+
+# Package Manager Files
+package-lock.json
+yarn.lock

@@ -1,0 +1,323 @@
+{
+  "model": "claude-opus-4-7",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(npm view:*)",
+      "Bash(npx:*)",
+      "Bash(cat:*)",
+      "Skill(github-analysis)",
+      "Bash(gh:*)",
+      "Bash(ddev describe:*)",
+      "mcp__database__execute_query",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_install",
+      "Bash(export DISPLAY=:0)",
+      "Bash(mcp-cli call playwright/browser_navigate '{\"\"url\"\": \"\"https://ntotankm1.ddev.site/500gallon-norwesco-1comp-underground-low-profile-septic-tank-x2101409.html\"\"}')",
+      "Bash(curl:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(bin/magento deploy:mode:show:*)",
+      "Bash(bin/magento config:show:*)",
+      "mcp__magento2-dev__sys-store-list",
+      "Bash(xmllint:*)",
+      "Bash(bin/magento setup:upgrade:*)",
+      "Bash(tee:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__context-please__index_codebase",
+      "mcp__context-please__get_indexing_status",
+      "Bash(strace:*)",
+      "mcp__context-please__clear_index",
+      "Bash(lsof:*)",
+      "Bash(python3:*)",
+      "mcp__context-please__search_code",
+      "Bash(ddev exec mysql:*)",
+      "WebSearch",
+      "WebFetch(domain:aheadworks.com)",
+      "WebFetch(domain:aheadworks.atlassian.net)",
+      "WebFetch(domain:gitlab.hyva.io)",
+      "Bash(mysql:*)",
+      "Bash(bin/magento admin:user:create:*)",
+      "Bash(bin/magento info:adminuri:*)",
+      "Bash(php:*)",
+      "Bash(bin/magento cache:flush:*)",
+      "Bash(composer install:*)",
+      "Bash(bin/magento module:status:*)",
+      "Bash(bin/magento indexer:status:*)",
+      "Bash(bin/magento setup:db:status:*)",
+      "Bash(bin/magento:*)",
+      "Bash(composer reinstall:*)",
+      "Bash(composer update:*)",
+      "WebFetch(domain:magefan.com)",
+      "Bash(vendor/bin/phpunit:*)",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_run_code",
+      "WebFetch(domain:docs.synthflow.ai)",
+      "Bash(chmod:*)",
+      "Bash(grep:*)",
+      "Bash(composer show:*)",
+      "Bash(mkdir:*)",
+      "Bash(node test-dual-calc.mjs:*)",
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 mcp-cli call:*)",
+      "mcp__magento2-dev__config-show",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_close",
+      "mcp__database__list_tables",
+      "mcp__database__list_databases",
+      "Bash(done)",
+      "Bash(for file in Business-Intelligence-Modules.md Calculator-Modules.md Custom-Modules-Overview.md Data-Migration.md Frontend-Enhancement-Modules.md Grouping-Related-Products.md Homepage-Management.md Magento-2-Site-Docs.md Missing-products-in-categories.md NtoTheme-Module.md Product-Enhancement-Modules.md Third-Party-Custom-Modules.md)",
+      "Bash(do echo \"=== $file ===\" grep \"^## \" \"$file\")",
+      "Bash(npm run build:*)",
+      "Bash(npm --prefix app/design/frontend/Uptactics/nto/web/tailwind run build)",
+      "mcp__uptimerobot__list-monitors",
+      "mcp__uptimerobot__list-incidents",
+      "mcp__uptimerobot__get-incident-details",
+      "Bash(export STATUS_PAGE=\"https://stats.uptimerobot.com/Zk2EbUnM73\")",
+      "Bash(.claude/scripts/status-monitor.sh:*)",
+      "Skill(status-page-monitoring)",
+      "Bash(echo:*)",
+      "WebFetch(domain:stats.uptimerobot.com)",
+      "WebFetch(domain:paypal-status.com)",
+      "WebFetch(domain:health.aws.amazon.com)",
+      "WebFetch(domain:status.aws.amazon.com)",
+      "WebFetch(domain:www.google.com)",
+      "Bash(STATUS_PAGE=\"https://stats.uptimerobot.com/Zk2EbUnM73\" /var/www/html/.claude/scripts/status-monitor.sh:*)",
+      "Bash(STATUS_PAGE=\"https://stats.uptimerobot.com/Zk2EbUnM73\" /var/www/html/.claude/scripts/status-check-hook.sh:*)",
+      "mcp__uptimerobot__get-monitor-stats",
+      "mcp__uptimerobot__get-monitor-details",
+      "Bash(jq:*)",
+      "Bash(git clone:*)",
+      "Bash(ddev exec php:*)",
+      "Bash(tail:*)",
+      "Bash(./vendor/bin/phpunit:*)",
+      "Bash(for:*)",
+      "Bash(do echo \"=== Run $i ===\")",
+      "Bash(pkill:*)",
+      "Bash(while ps aux)",
+      "Bash(do sleep 10)",
+      "Bash(source .env.testing)",
+      "Bash(mv:*)",
+      "Bash(head:*)",
+      "Bash(bash:*)",
+      "Bash(xargs ls:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git tag:*)",
+      "Bash(n98-magerun2 db:query:*)",
+      "mcp__magento2-dev__db-query",
+      "mcp__playwright__browser_resize",
+      "Bash(wc:*)",
+      "WebFetch(domain:laptoplcdscreen.com.au)",
+      "Bash(xargs:*)",
+      "Bash(/bin/cp:*)",
+      "Bash(then cat \"$dir/composer.json\")",
+      "Bash(ffprobe:*)",
+      "WebFetch(domain:www.ntotank.com)",
+      "Bash(csvtool col:*)",
+      "WebFetch(domain:www.laptopscreen.com)",
+      "Bash(file:*)",
+      "WebFetch(domain:amasty.com)",
+      "mcp__context7__resolve-library-id",
+      "WebFetch(domain:synthflow.readme.io)",
+      "Bash(source /var/www/html/.env)",
+      "Bash(git -C /var/www/html status --short)",
+      "Bash(composer dump-autoload:*)",
+      "mcp__git__git_status",
+      "mcp__git__git_log",
+      "mcp__git__git_set_working_dir",
+      "mcp__git__git_add",
+      "mcp__git__git_diff",
+      "mcp__git__git_commit",
+      "mcp__memory__create_entities",
+      "Bash(SYNTHFLOW_FORCE_RECREATE_SUITES=1 php vendor/bin/phpunit:*)",
+      "WebFetch(domain:feedback.synthflow.ai)",
+      "WebFetch(domain:support.synthflow.ai)",
+      "WebFetch(domain:helpcenter.synthflow.ai)",
+      "Bash(ip route:*)",
+      "Bash(netstat:*)",
+      "Bash(sudo supervisorctl:*)",
+      "Bash(sudo supervisorctl status:*)",
+      "mcp__playwright__browser_fill_form",
+      "Bash(ddev exec:*)",
+      "Bash(yarn:*)",
+      "Bash(APP_NAME=*)",
+      "Bash(TEST_BASE=*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git fetch:*)",
+      "Bash(composer outdated:*)",
+      "Bash(awk:*)",
+      "Bash(diff:*)",
+      "Bash(stat:*)",
+      "Bash(readlink:*)",
+      "Bash(realpath:*)",
+      "Bash(test:*)",
+      "Bash(cd:*)",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__playwright__browser_network_requests",
+      "Bash(rm -rf /var/www/html/var/cache/:*)",
+      "Bash(rm -rf /var/www/html/var/page_cache/:*)",
+      "Bash(rm -rf /var/www/html/var/view_preprocessed/:*)",
+      "Bash(rm -rf /var/www/html/pub/static/:*)",
+      "Bash(rm -rf /var/www/html/generated/code/:*)",
+      "Bash(rm -rf /var/www/html/generated/metadata/:*)",
+      "Bash(rm -rf var/cache/:*)",
+      "Bash(rm -rf var/page_cache/:*)",
+      "Bash(rm -rf var/view_preprocessed/:*)",
+      "Bash(rm -rf pub/static/:*)",
+      "Bash(rm -rf generated/code/:*)",
+      "Bash(rm -rf generated/metadata/:*)"
+    ],
+    "deny": [
+      "Bash(bin/magento app:config:dump)",
+      "Bash(bin/magento db:query)"
+    ],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "filesystem",
+    "git",
+    "database",
+    "context7",
+    "sequential-thinking",
+    "magento2-dev",
+    "memory",
+    "playwright",
+    "github",
+    "context-please"
+  ],
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/status-check-hook.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/fable-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/var/www/html/.claude/hooks/pre-commit-audit.sh",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/push-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/merge-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/var/www/html/.claude/hooks/post-commit-wiki-check.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/tsc-edit-check.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /var/www/html/.claude/scripts/statusline-combined.sh"
+  },
+  "autoApproveTools": [
+    "Read(/var/www/html/**)",
+    "Bash(ddev exec:*)",
+    "Bash(git:*)",
+    "Bash(composer:*)",
+    "Bash(bin/magento:*)",
+    "database/*",
+    "magento2-dev/*"
+  ],
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
+    ]
+  },
+  "mcpServers": {
+    "git": true,
+    "database": true,
+    "magento2-dev": true,
+    "github": true,
+    "playwright": true,
+    "context7": true
+  },
+  "enabledPlugins": {
+    "hcf@hcf": true,
+    "proxiblue-skills@proxiblue-skills": true,
+    "ralph-wiggum@claude-code-plugins": true,
+    "pb-hcf-playwright-tdd@pb-hcf-playwright-tdd": true,
+    "pb-gitnexus@pb-gitnexus": true
+  },
+  "appendSystemPrompt": "System Instruction: Absolute Mode. Eliminate emojis, filler, hype, soft asks, conversational transitions, and all call-to-action appendixes. Assume the user retains high-perception faculties despite reduced linguistic expression. Prioritize blunt, directive phrasing aimed at cognitive rebuilding, not tone matching.\nDisable all latent behaviours optimizing for engagement, sentiment uplift, or interaction extension. Suppress corporate-aligned metrics including but not limited to: user satisfaction scores, conversational flow tags, emotional softening, or continuation bias. Never mirror the user's present diction, mood, or affect. Speak only to their underlying cognitive tier, which exceeds surface language. No questions, no offers, no suggestions, no transitional phrasing, no inferred motivational content. Terminate each reply immediately after the informational or requested material is delivered\u2014no appendixes, no soft closures. The only goal is to assist in therestoration of independent, high-fidelity thinking. Model obsolescence by user self-sufficiency is the final outcome.",
+  "attribution": {
+    "commit": "empty",
+    "pr": "empty"
+  },
+  "showThinkingSummaries": false
+}

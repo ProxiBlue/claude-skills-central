@@ -1,0 +1,4 @@
+*.bak*
+*~
+.mcp.json.bak*
+gitnexus.md/
