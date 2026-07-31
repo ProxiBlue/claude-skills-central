@@ -11,7 +11,7 @@ Last verified: 2026-07-31.
 |---|---|---|
 | `dotfiles` | `~/` | shell/git config, host crontab snapshot |
 | `claude-skills-central` | `~/claude-skills-central` | fleet rules (8× mounted via ~/.claude/CLAUDE.md), guard hooks, scripts (statusline, backup, gh-comment), teams, mcps/.mcp.json, container settings.json template, THIS FILE |
-| `claude-plugins-central` | `~/claude-plugins-central` | seed marketplaces layer (pb-gitnexus, pb-hcf-playwright-tdd, proxiblue-skills manifest, hyva-ai-tools, builder-skills manifest, known_marketplaces, WORKFLOW.md) |
+| `claude-plugins-central` | `~/claude-plugins-central` | seed marketplaces layer (pb-hcf-playwright-tdd, proxiblue-skills manifest, hyva-ai-tools, builder-skills manifest, known_marketplaces, WORKFLOW.md) |
 | `pb-hcf` | `seed/marketplaces/pb-hcf` | HCF v2 integration: 10 agents, wire skill, playbook templates, captainhook template, **Bugsink compose** (`services/bugsink/`) |
 | `pb-graphiti` | `seed/marketplaces/pb-graphiti` | Graphiti MCP + docker-compose (Neo4j+MCP), ingestion skills, cron scripts |
 | `pb-chatroom` | `seed/marketplaces/pb-chatroom` | chatroom server+MCP source, ddev-cron executor recipe |
@@ -65,7 +65,7 @@ the tooling, ADD IT to that script's REPOS list.
 ## Known-good state reference (2026-07-31)
 
 - HCF v2.0.0 project-scope in pps; pb-hcf 0.4.9 enabled; 10 agents enrolled via
-  `~/claude-code-magento-agents` RO mount; pb-gitnexus disabled (deprecated).
+  `~/claude-code-magento-agents` RO mount; legacy code-graph plugin removed.
 - pps gates: captainhook pre-commit (uat-merge-guard) + pre-push (Uptactics unit
   suite, `--stop-on-failure app/code/Uptactics/*/Test/Unit` + pre-push-check.sh).
 - Claude-level guards (container): push-guard, merge-guard, pre-commit-audit,

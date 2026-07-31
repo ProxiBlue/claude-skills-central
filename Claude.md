@@ -132,11 +132,11 @@ Before any task involving config files, MCP setup, mount permissions, or host pa
 - Host project paths (`~/workspace/...`) are NOT visible from inside the DDEV container. Ask the user or use the host shell.
 - When config edits are needed and the file is in a read-only mount, stop and explicitly ask the user to run the edit from the host shell.
 
-## Tool Selection (GitNexus + grep)
+## Tool Selection (codegraph + grep)
 
-- Use GitNexus MCP first for codebase exploration (`find_symbol`, `impact`, `query`) — falls back to grep/Read quickly if results are incomplete OR the index doesn't list the expected symbol.
-- **Index naming gotcha**: GitNexus auto-assigns the alias from the git remote name, NOT the mount basename. PPS = `m2_pvcpipesupplies` (not `pps`). LCD = `lcdscreen_mageos`. Always check `gitnexus list` to see actual aliases before querying with `repo: <alias>`.
-- After building / re-registering a new GitNexus index (via `build-mount.sh` or `gitnexus index`), the gitnexus container must be **restarted** (`docker restart ddev-${PROJECT}-gitnexus`) for the MCP server to load it. Live registration without restart is not supported.
+- Use the pb-codegraph MCP first for codebase exploration (`find_symbol`, `impact`, `query`) — fall back to grep/Read if results are incomplete OR `list_repos` doesn't list the expected repo.
+- **Repo naming**: project repos register as `m2_<sitename>` (e.g. `m2_pvcpipesupplies`); check `mcp__pb-codegraph__list_repos` for actual names before passing `repo:`.
+- After `pb-codegraph index` the graph updates in place (no restart needed); a staleness banner on `impact` means re-run `pb-codegraph augment`.
 - Cross-mount edge traversal does NOT work — `impact(MageosClass)` won't return callers from custom code, and vice versa. Federated search via `repo: @mageos-project` merges symbol hits but not graph edges.
 
 ## Database

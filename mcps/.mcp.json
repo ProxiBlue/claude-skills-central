@@ -11,7 +11,9 @@
     },
     "database": {
       "command": "npx",
-      "args": ["mariadb-mcp-server"],
+      "args": [
+        "mariadb-mcp-server"
+      ],
       "env": {
         "MARIADB_HOST": "db",
         "MARIADB_PORT": "3306",
@@ -92,26 +94,29 @@
         "-c",
         "if [ -x /usr/local/bin/google-chrome-mcp ]; then exec env DISPLAY=${DISPLAY:-:0} npx -y chrome-devtools-mcp@latest --executablePath=/usr/local/bin/google-chrome-mcp --headless=false --isolated=false --acceptInsecureCerts=true; else GW=$(ip route | awk '/default/{print $3; exit}'); exec npx -y chrome-devtools-mcp@latest --browserUrl=http://${GW}:9224; fi"
       ],
-      "description": "Chrome DevTools MCP — auto-detects model. PREFERRED (in-container): if /usr/local/bin/google-chrome-mcp exists (installed by a project's .ddev/web-build/Dockerfile.chrome — the wrapper adds --no-sandbox --disable-dev-shm-usage), runs headed Chrome INSIDE the web container rendering to host X via DISPLAY (X0 socket mounted fleet-wide). Chrome shares the app net namespace → hits <project>.ddev.site internally, mkcert CA trusted, persistent profile (logins survive restarts, wiped on image rebuild). LEGACY fallback (no wrapper): dials host-side chrome-mcp over socat bridge http://<gateway>:9224, which requires `chrome-mcp --bg` running on the host (Chrome + socat + --remote-allow-origins=*, see ~/bin/chrome-mcp). Do NOT instruct the user to run `chrome-mcp --bg` for a project whose container has the wrapper. Flip a project: add Dockerfile.chrome + `ddev debug rebuild -s web`. pps done 2026-07-09."
+      "description": "Chrome DevTools MCP \u2014 auto-detects model. PREFERRED (in-container): if /usr/local/bin/google-chrome-mcp exists (installed by a project's .ddev/web-build/Dockerfile.chrome \u2014 the wrapper adds --no-sandbox --disable-dev-shm-usage), runs headed Chrome INSIDE the web container rendering to host X via DISPLAY (X0 socket mounted fleet-wide). Chrome shares the app net namespace \u2192 hits <project>.ddev.site internally, mkcert CA trusted, persistent profile (logins survive restarts, wiped on image rebuild). LEGACY fallback (no wrapper): dials host-side chrome-mcp over socat bridge http://<gateway>:9224, which requires `chrome-mcp --bg` running on the host (Chrome + socat + --remote-allow-origins=*, see ~/bin/chrome-mcp). Do NOT instruct the user to run `chrome-mcp --bg` for a project whose container has the wrapper. Flip a project: add Dockerfile.chrome + `ddev debug rebuild -s web`. pps done 2026-07-09."
     },
-    "gitnexus-mageos": {
-      "type": "http",
-      "url": "http://gitnexus:4747/api/mcp",
-      "description": "Pre-built GitNexus knowledge graph for Mage-OS, plus this project's custom code. Resolves to the per-project gitnexus service defined in .ddev/docker-compose.gitnexus.yaml via DDEV's internal docker DNS. Each project sees only its own custom code; no cross-project leakage."
+    "pb-codegraph": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "/var/www/html/.claude/scripts/pb-codegraph-mcp.sh"
+      ],
+      "description": "pb-codegraph code-graph MCP: shared Mage-OS/Hyva/deps core indexes + this project's custom code, with Magento XML-wiring edges (plugins, observers, preferences, layout, routes). Tools: list_repos, find_symbol, impact, context, query."
     },
     "graphiti": {
       "type": "http",
       "url": "http://host.docker.internal:8765/mcp",
-      "description": "Shared fleet temporal knowledge graph (Graphiti + Neo4j on host). Domain knowledge — decisions, incidents, vendor rules, client preferences, branch maps. MUST pass group_id=$DDEV_PROJECT on every call to namespace per project. See ~/claude-skills-central/rules/graphiti-usage.md for write/query discipline."
+      "description": "Shared fleet temporal knowledge graph (Graphiti + Neo4j on host). Domain knowledge \u2014 decisions, incidents, vendor rules, client preferences, branch maps. MUST pass group_id=$DDEV_PROJECT on every call to namespace per project. See ~/claude-skills-central/rules/graphiti-usage.md for write/query discipline."
     },
     "chatroom": {
       "type": "http",
       "url": "http://host.docker.internal:7477/",
-      "description": "Self-hosted multi-Claude coordination chatroom (pb-chatroom). Threaded messages between host and DDEV-container Claude sessions. Tools: chat_send / chat_ack (replies only — thread_id required), chat_read_thread, chat_list_threads. Identity auto-resolved from $DDEV_PROJECT or 'host'. Root-thread creation reserved for parent sessions via the /chat threads-open slash command."
+      "description": "Self-hosted multi-Claude coordination chatroom (pb-chatroom). Threaded messages between host and DDEV-container Claude sessions. Tools: chat_send / chat_ack (replies only \u2014 thread_id required), chat_read_thread, chat_list_threads. Identity auto-resolved from $DDEV_PROJECT or 'host'. Root-thread creation reserved for parent sessions via the /chat threads-open slash command."
     },
     "bricklayer": {
       "command": "/var/www/html/.claude/scripts/bricklayer-mcp.sh",
-      "description": "Inchoo/magento-bricklayer runtime introspection for Magento 2 (DI resolution, plugin chains, EAV attributes, event observers, error triage, code generation). 83 tools; 17 essentials visible at startup, remainder discoverable via search-tools. Composer-installed per project (`composer require --dev inchoo/magento-bricklayer` + `vendor/bin/bricklayer install --env=ddev --agents=claude-code`). This entry launches the MCP via a fleet-mounted gated wrapper — silently exits on containers where vendor/bin/bricklayer is not installed (non-Magento projects: ai_assistant, tradingBOT, ihop, ntotankM1). Complements gitnexus (static graph) and graphiti (temporal domain knowledge) — bricklayer answers 'what is resolved at runtime with all installed extensions loaded'. See ~/claude-skills-central/scripts/bricklayer-mcp.sh for the gate logic."
+      "description": "Inchoo/magento-bricklayer runtime introspection for Magento 2 (DI resolution, plugin chains, EAV attributes, event observers, error triage, code generation). 83 tools; 17 essentials visible at startup, remainder discoverable via search-tools. Composer-installed per project (`composer require --dev inchoo/magento-bricklayer` + `vendor/bin/bricklayer install --env=ddev --agents=claude-code`). This entry launches the MCP via a fleet-mounted gated wrapper \u2014 silently exits on containers where vendor/bin/bricklayer is not installed (non-Magento projects: ai_assistant, tradingBOT, ihop, ntotankM1). Complements gitnexus (static graph) and graphiti (temporal domain knowledge) \u2014 bricklayer answers 'what is resolved at runtime with all installed extensions loaded'. See ~/claude-skills-central/scripts/bricklayer-mcp.sh for the gate logic."
     }
   }
 }

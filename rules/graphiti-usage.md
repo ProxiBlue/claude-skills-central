@@ -69,7 +69,7 @@ Write an episode when you learn ANY of:
 - An incident root cause ("DISPLAY=:0 lost during 2026-06-04 Lapce sweep; carrier moved to mounts.yaml")
 - A vendor / module verdict ("Anowave blocked", "Mageplaza_OrderLabels OK for PVC")
 - A client preference ("billing invoices always DRAFT", "PR comments minimized as off-topic")
-- A repeatable runbook step ("regenerate gitnexus index after composer require")
+- A repeatable runbook step ("re-run pb-codegraph index after composer require")
 
 Don't write:
 - Ephemeral session state, in-progress task lists
@@ -136,4 +136,4 @@ search_memory_nodes(group_ids=["fleet"], query="<your question>")
 
 ## Why this exists
 
-Flat-file memory at `~/.claude/projects/-home-lucas/memory/` scales to ~50 facts before the index becomes unreadable. Domain knowledge across 12 ddev projects easily hits 500+. Graphiti handles supersession (X was true until time T, then Y) and cross-fact retrieval (entity-relation queries) natively. Pairs with gitnexus the way a brain pairs with a nervous system: gitnexus = structural code graph, Graphiti = domain knowledge graph.
+Flat-file memory at `~/.claude/projects/-home-lucas/memory/` scales to ~50 facts before the index becomes unreadable. Domain knowledge across 12 ddev projects easily hits 500+. Graphiti handles supersession (X was true until time T, then Y) and cross-fact retrieval (entity-relation queries) natively. Pairs with pb-codegraph the way a brain pairs with a nervous system: codegraph = structural code graph, Graphiti = domain knowledge graph.

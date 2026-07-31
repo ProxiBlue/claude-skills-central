@@ -15,7 +15,7 @@ Every agent in this team has the full skill catalogue available. The relevant on
 
 ### Skills (in `~/claude-skills-central/skills/` and `proxiblue-skills`)
 - **`security-scan`** — Magento 2 dependency CVE scan, admin/session/cookie/HTTPS config audit, file-system security. Used by Trios 4, 5, 6.
-- **`workflow-security-audit`** — Magento custom-code SQL-injection / XSS / CSRF / authn-bypass / file-upload / command-injection / unserialize / hardcoded-secrets / IDOR / CSP / weak-crypto checks, with `mcp__gitnexus-mageos__impact` propagation. Used by Trios 1, 2, 3, 7.
+- **`workflow-security-audit`** — Magento custom-code SQL-injection / XSS / CSRF / authn-bypass / file-upload / command-injection / unserialize / hardcoded-secrets / IDOR / CSP / weak-crypto checks, with `mcp__pb-codegraph__impact` propagation. Used by Trios 1, 2, 3, 7.
 - **`server-scan`** — server-level malware, webshell, and post-incident forensics. Used by Trios 4, 5, 6 when an SSH target is in scope.
 - **`code-quality-audit`** — PSR-12, phpstan, phpcs, phpmd. Used by the Defensive Auditors as a baseline signal.
 - **`database-query-analysis`** — direct DB inspection via the database / magento2-dev MCPs. Used by Trio 1 (verify actual query construction) and Trio 3 (verify ACL state).
@@ -25,13 +25,13 @@ Every agent in this team has the full skill catalogue available. The relevant on
 - **`github-analysis`** — when the audit target is a GitHub ticket / PR.
 
 ### Agents (in `claude-plugins-central` marketplaces)
-- **`devils-advocate`** (hcf, opus) — gap-finder using `mcp__gitnexus-mageos__impact`. The **Moderator** adopts this mindset for cross-trio synthesis: hunt blind spots, not redesigns.
-- **`gitnexus-reviewer`** (pb-gitnexus, opus) — diff-impact reviewer that surfaces indirect callers via the code graph. Every **Static Analyst** in the team inherits this technique to chase data-flow beyond grep.
+- **`devils-advocate`** (hcf, opus) — gap-finder using `mcp__pb-codegraph__impact`. The **Moderator** adopts this mindset for cross-trio synthesis: hunt blind spots, not redesigns.
+- **`codegraph-reviewer`** (pb-hcf, opus) — diff-impact reviewer that surfaces indirect callers via the code graph. Every **Static Analyst** in the team inherits this technique to chase data-flow beyond grep.
 - **`standards-enforcer`** (hcf, opus) — read-the-rules, verify-compliance worker. Every **Defensive Auditor** in the team inherits this pass-then-verify pattern (don't just spot what's wrong; explicitly walk every control and confirm it is correctly applied).
 - **`tdd-worker`** (hcf) — explicitly **NOT used** here; this team is read-only.
 
 ### MCPs available
-- `mcp__gitnexus-mageos__impact` / `__find_symbol` / `__query` / `__context` — for code-graph impact analysis (Static Analysts + Moderator).
+- `mcp__pb-codegraph__impact` / `__find_symbol` / `__query` / `__context` — for code-graph impact analysis (Static Analysts + Moderator).
 - `database` / `magento2-dev` — direct DB / Magento config inspection (Trios 1, 3, 6).
 - `WebSearch` / `WebFetch` — for Trio 5 online CVE lookup against NVD / OSV / GitHub Advisory DB.
 
@@ -67,7 +67,7 @@ The team is **seven trios of three agents** (21 total). Each trio audits one sec
 **Models**: opus, opus, sonnet
 **Scope**: SQL injection, NoSQL injection, OS command injection, template injection, LDAP injection, header injection, log injection.
 **Skills to invoke**: `workflow-security-audit` (SQL/command-injection patterns), `database-query-analysis` (verify the queries that actually run), `code-quality-audit` (phpstan signal for raw query strings).
-**Agents/MCPs**: every Static Analyst uses `mcp__gitnexus-mageos__impact` to chase indirect callers (gitnexus-reviewer pattern). Adversarial Tester uses `mcp__gitnexus-mageos__find_symbol` to locate sinks. Defensive Auditor follows the `standards-enforcer` pass-then-verify rule walk.
+**Agents/MCPs**: every Static Analyst uses `mcp__pb-codegraph__impact` to chase indirect callers (codegraph-reviewer pattern). Adversarial Tester uses `mcp__pb-codegraph__find_symbol` to locate sinks. Defensive Auditor follows the `standards-enforcer` pass-then-verify rule walk.
 
 Spawn prompt for each of the three agents (substitute `{ANGLE}` with `Static Analyst` / `Adversarial Tester` / `Defensive Auditor`):
 ```
@@ -79,18 +79,18 @@ OWASP: A03:2021 – Injection.
 SCOPE: SQL, NoSQL, OS command, template, LDAP, header, log injection.
 
 SKILLS TO INVOKE (use Skill tool):
-- /proxiblue-skills:workflow-security-audit  → pattern-level SQL/command-injection scan with gitnexus impact propagation
+- /proxiblue-skills:workflow-security-audit  → pattern-level SQL/command-injection scan with codegraph impact propagation
 - /proxiblue-skills:database-query-analysis  → confirm what queries actually run against the DB
 - /proxiblue-skills:code-quality-audit       → phpstan signals for raw query construction
 
 ANGLE-SPECIFIC FOCUS:
-- Static Analyst: trace every external input to its sink. Use mcp__gitnexus-mageos__impact on each suspicious symbol to surface indirect callers grep would miss (gitnexus-reviewer pattern). Flag concatenated queries, unescaped exec(), unsafe shell calls, raw template interpolation.
-- Adversarial Tester: for each user-controllable input, write the exploit payload you'd try (' OR 1=1, $where, $(id), {{7*7}}, etc.) and the file:line where it would land. Use mcp__gitnexus-mageos__find_symbol to locate sinks.
+- Static Analyst: trace every external input to its sink. Use mcp__pb-codegraph__impact on each suspicious symbol to surface indirect callers grep would miss (codegraph-reviewer pattern). Flag concatenated queries, unescaped exec(), unsafe shell calls, raw template interpolation.
+- Adversarial Tester: for each user-controllable input, write the exploit payload you'd try (' OR 1=1, $where, $(id), {{7*7}}, etc.) and the file:line where it would land. Use mcp__pb-codegraph__find_symbol to locate sinks.
 - Defensive Auditor: walk EVERY identified sink and explicitly confirm parameterised queries / prepared statements / ORM safe-binding / escapeshellarg / template auto-escaping are applied — not just imported. Use the standards-enforcer pass-then-verify discipline.
 
 PROCESS:
 1. Enumerate all input sources (HTTP params, headers, body, file uploads, env, queue messages).
-2. Trace each to its eventual sink (gitnexus impact for indirect paths).
+2. Trace each to its eventual sink (codegraph impact for indirect paths).
 3. Vote PASS / FAIL / NEEDS-REVIEW with evidence.
 
 OUTPUT:
@@ -112,7 +112,7 @@ ROUND 2: When shown the other two agents' votes, either reinforce yours with ext
 **Models**: opus, opus, sonnet
 **Scope**: Reflected XSS, stored XSS, DOM XSS, CSP header presence + strictness, `unsafe-inline` / `unsafe-eval`, nonce/hash usage, `X-Content-Type-Options`, `Referrer-Policy`.
 **Skills to invoke**: `workflow-security-audit` (XSS in .phtml — escapeHtml/escapeUrl scan), `magento-diagnostic` (read served headers + CSP whitelist config), `code-quality-audit`.
-**Agents/MCPs**: Static Analyst uses `mcp__gitnexus-mageos__impact` to trace tainted-source → DOM/HTML sinks across layout XML + block + template chains.
+**Agents/MCPs**: Static Analyst uses `mcp__pb-codegraph__impact` to trace tainted-source → DOM/HTML sinks across layout XML + block + template chains.
 
 Spawn prompt (substitute `{ANGLE}`):
 ```
@@ -127,7 +127,7 @@ SKILLS TO INVOKE (use Skill tool):
 - /proxiblue-skills:magento-diagnostic       → read served headers + Magento CSP whitelist config (Magento_Csp etc.)
 
 ANGLE-SPECIFIC FOCUS:
-- Static Analyst: hunt every place user input reaches HTML/JS/attribute/URL/CSS contexts. Check escaping per-context (HTML body vs attribute vs JS string vs URL — they differ). Use mcp__gitnexus-mageos__impact on each block/template to surface where data enters the rendering chain.
+- Static Analyst: hunt every place user input reaches HTML/JS/attribute/URL/CSS contexts. Check escaping per-context (HTML body vs attribute vs JS string vs URL — they differ). Use mcp__pb-codegraph__impact on each block/template to surface where data enters the rendering chain.
 - Adversarial Tester: for each output sink, write the XSS payload (<script>, <img onerror>, javascript: URI, SVG, mxss). State what context bypass it relies on.
 - Defensive Auditor: read the actual CSP header value served (curl -I against a representative URL or read Magento_Csp config). Flag unsafe-inline, unsafe-eval, wildcard sources, missing nonces. Check X-Content-Type-Options: nosniff, Referrer-Policy, X-Frame-Options or frame-ancestors. Walk every header per standards-enforcer pass-then-verify rule.
 
@@ -148,7 +148,7 @@ ROUND 2: as Trio 1. Investigation only.
 **Models**: opus, opus, sonnet
 **Scope**: Missing authorization, IDOR (insecure direct object reference), horizontal/vertical privilege escalation, path traversal, CORS misconfig, missing function-level access control.
 **Skills to invoke**: `workflow-security-audit` (admin controllers missing `_isAllowed`; IDOR through route params reaching `$resource->load`), `database-query-analysis` (verify ACL tables / role assignments), `magento-diagnostic` (read admin URL secret-key + 2FA config).
-**Agents/MCPs**: Static Analyst uses `mcp__gitnexus-mageos__impact` on every controller `execute()` method to chase what the request can touch.
+**Agents/MCPs**: Static Analyst uses `mcp__pb-codegraph__impact` on every controller `execute()` method to chase what the request can touch.
 
 Spawn prompt:
 ```
@@ -164,7 +164,7 @@ SKILLS TO INVOKE (use Skill tool):
 - /proxiblue-skills:magento-diagnostic       → admin URL secret-key + 2FA config
 
 ANGLE-SPECIFIC FOCUS:
-- Static Analyst: for every controller/route/handler, identify the authn + authz gates. Use mcp__gitnexus-mageos__impact on each controller execute() to map what resources the request can reach. Flag any handler that reads/writes a resource by ID without verifying ownership against the session user.
+- Static Analyst: for every controller/route/handler, identify the authn + authz gates. Use mcp__pb-codegraph__impact on each controller execute() to map what resources the request can reach. Flag any handler that reads/writes a resource by ID without verifying ownership against the session user.
 - Adversarial Tester: enumerate IDOR scenarios — "user A sends user B's resource ID, does it leak?". Write the attack request. Check for vertical escalation (user role hitting admin endpoint).
 - Defensive Auditor: review middleware ordering, ACL/RBAC config (acl.xml + di.xml + adminhtml routes.xml), CORS allowlist, path-traversal guards (path.resolve / realpath / Magento File component). Confirm gates fire BEFORE the action, not after. Walk every controller per standards-enforcer pass-then-verify rule.
 
@@ -300,7 +300,7 @@ ROUND 2: as before. Investigation only.
 **Models**: opus, opus, sonnet
 **Scope**: CSRF token presence + validation, SameSite cookies, SSRF in outbound requests, allowlist for external URLs, deserialization safety, request smuggling, webhook signature verification.
 **Skills to invoke**: `workflow-security-audit` (CSRF — `form_key`, `unserialize` on user data, command-injection patterns also catch SSRF curl/file_get_contents usage).
-**Agents/MCPs**: Static Analyst uses `mcp__gitnexus-mageos__impact` on every state-changing controller + every outbound HTTP utility to chase user-controlled-URL paths.
+**Agents/MCPs**: Static Analyst uses `mcp__pb-codegraph__impact` on every state-changing controller + every outbound HTTP utility to chase user-controlled-URL paths.
 
 Spawn prompt:
 ```

@@ -4,7 +4,7 @@
 #
 # Why: Claude Code only imports the seed list on first launch. Once a project
 # has any cached known_marketplaces.json, adding new marketplaces to the seed
-# (e.g. magento-tdd, hcf-gitnexus, proxiblue-skills) does NOT propagate. This
+# (e.g. magento-tdd, proxiblue-skills) does NOT propagate. This
 # script does the merge on every ddev start.
 #
 # Merge semantics: project entries win on conflict (preserves per-project

@@ -22,9 +22,9 @@ Host-global Claude Code customization for Lucas's fleet — rules, hooks, script
 - **php-debugging.md** — mandatory xdebug-mcp usage instead of `var_dump`/echo debugging.
 - **caveman.md** — default response register (terse, drop articles).
 - **gh-ticket-comments.md** — ticket comments are caveman + minimized off-topic.
-- **hcf-plan-orchestrate.md** — use `/pb-gitnexus:plan-orchestrate`, never bare HCF.
+- **hcf-plan-orchestrate.md** — pb-hcf wire + native HCF orchestration (wrapper retired).
 - **graphiti-usage.md** — discipline for writing to / reading from the shared knowledge graph.
-- **gitnexus-default.md** — default gitnexus tooling order.
+- **codegraph-default.md** — codegraph-first tooling order.
 
 ### Hooks (wired in `~/.claude/settings.json`)
 
