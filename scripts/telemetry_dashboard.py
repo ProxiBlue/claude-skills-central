@@ -107,6 +107,18 @@ def harness_seen():
     p = MON / "harness-watch" / "last-seen"
     return p.read_text().strip() if p.exists() else "?"
 
+def recent_alerts(n=12):
+    """Read ~/monitor/alerts.log (iso\\turgency\\ttitle\\tbody), newest first."""
+    p = MON / "alerts.log"
+    if not p.exists():
+        return []
+    rows = []
+    for ln in p.read_text().splitlines()[-n:]:
+        parts = ln.split("\t")
+        if len(parts) >= 3:
+            rows.append((parts[0], parts[1], parts[2], parts[3] if len(parts) > 3 else ""))
+    return list(reversed(rows))
+
 # job name -> max age in days before STALE (mirrors monitor.sh registry)
 JOB_MAXAGE = {"drift": 8, "usage": 8, "evals": 32, "dashboard": 2,
               "harness": 2, "pin": 2, "graphiti-backup": 2}
@@ -187,6 +199,7 @@ def main():
     fleet = latest_fleet()
     seen = harness_seen()
     health_rows, health_ok = collectors_health()
+    alerts = recent_alerts()
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     GUARDS = [("test_gate", "test-gate"), ("gh_comment", "gh-comment-guard"),
@@ -274,6 +287,18 @@ def main():
         <div class="tval">{sum(1 for r in health_rows if r[3])}/{len(health_rows)}</div>
         <div class="tsub">heartbeats fresh</div></div>'''
 
+    alert_rows = ""
+    for ts, urg, title, body in alerts:
+        cls = "critical" if urg == "critical" else "warn"
+        when = ts.replace("T", " ")[:16]
+        alert_rows += (f'<div class="estrip {"critical" if urg=="critical" else ""}">'
+                       f'<span class="epill" style="color:var(--{"crit" if urg=="critical" else "warn"});'
+                       f'background:var(--{"crit" if urg=="critical" else "warn"}-soft)">{html.escape(urg)}</span>'
+                       f'<span class="ename" style="width:9.5rem">{html.escape(when)}</span>'
+                       f'<span class="edetail">{html.escape(title)} — {html.escape(body)}</span></div>')
+    if not alert_rows:
+        alert_rows = '<p class="muted">no alerts logged yet</p>'
+
     health_cells = ""
     for name, last, age, ok in health_rows:
         cls = "ok" if ok else "warn"
@@ -352,6 +377,12 @@ tr:last-child td{{border-bottom:none}} td:first-child{{font-weight:600}}
 <div class="sub">generated {now} · host · self-refreshes with the weekly crons</div></header>
 
 <div class="tiles">{tiles}</div>
+
+<section><h2>Recent alerts</h2>{alert_rows}
+<p class="note">Every actionable alert (job failure, pin stale, drift, dead collector,
+new release) is logged here as it fires — so a desktop popup you miss is still
+findable. Full log: <code>~/monitor/alerts.log</code> or <code>monitor alerts</code>.
+Delivered live to desktop when you're here, and to email when configured.</p></section>
 
 <section><h2>Collectors — liveness</h2>
 <div class="hstrip">{health_cells}</div>

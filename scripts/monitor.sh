@@ -23,6 +23,53 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HB="$HOME/monitor/heartbeats"; mkdir -p "$HB"
 GRAPHITI_BACKUP="$HOME/claude-plugins-central/seed/marketplaces/pb-graphiti/scripts/backup.sh"
 
+# --- alert delivery -----------------------------------------------------------
+# Actionable alerts (job failed / escalated / collector dead) fire a DESKTOP
+# popup when you're at the machine, plus an EMAIL backup for when you're away.
+# Passive weekly digests stay in chatroom only. Desktop is best-effort (needs an
+# active X session); email is best-effort (needs SMTP creds in the config file
+# below). Neither failing ever blocks a job.
+#
+# Email config (dormant until filled): ~/.config/monitor-notify.env with
+#   NOTIFY_EMAIL_TO, SMTP_URL (e.g. smtps://mail.host:465), SMTP_USER, SMTP_PASS
+NOTIFY_CFG="$HOME/.config/monitor-notify.env"
+
+notify_desktop() {  # <urgency> <title> <body>
+  command -v notify-send >/dev/null 2>&1 || return 0
+  local u=$(id -u)
+  DISPLAY="${DISPLAY:-:0}" \
+  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$u/bus}" \
+    notify-send -u "$1" -a "monitor" "$2" "$3" 2>/dev/null || true
+}
+
+notify_email() {  # <subject> <body>
+  [ -f "$NOTIFY_CFG" ] || return 0
+  # shellcheck disable=SC1090
+  . "$NOTIFY_CFG"
+  [ -n "${SMTP_URL:-}" ] && [ -n "${NOTIFY_EMAIL_TO:-}" ] || return 0
+  local from="${SMTP_USER:-monitor@localhost}"
+  local msg; msg=$(printf 'From: monitor <%s>\nTo: %s\nSubject: %s\n\n%s\n' \
+    "$from" "$NOTIFY_EMAIL_TO" "$1" "$2")
+  printf '%s' "$msg" | curl -sS --url "$SMTP_URL" \
+    --mail-from "$from" --mail-rcpt "$NOTIFY_EMAIL_TO" \
+    --user "${SMTP_USER}:${SMTP_PASS}" -T - >/dev/null 2>&1 || true
+}
+
+ALERT_LOG="$HOME/monitor/alerts.log"
+
+notify_alert() {  # <urgency> <title> <body>
+  # Persist FIRST — a transient popup you miss is gone, but the log and the
+  # dashboard 'Recent alerts' panel keep every alert findable later.
+  printf '%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$1" "$2" \
+    "$(echo "$3" | tr '\n' ' ' | cut -c1-200)" >> "$ALERT_LOG"
+  # rotate at ~500 lines
+  if [ "$(wc -l < "$ALERT_LOG" 2>/dev/null || echo 0)" -gt 500 ]; then
+    tail -n 300 "$ALERT_LOG" > "$ALERT_LOG.tmp" && mv "$ALERT_LOG.tmp" "$ALERT_LOG"
+  fi
+  notify_desktop "$1" "$2" "$3"
+  notify_email "$2" "$3"
+}
+
 # name          command                                  args             maxdays  freq
 JOBS="
 drift          $DIR/fleet-drift-check.sh                 ''               8        weekly
@@ -41,11 +88,42 @@ run_job() {
   cmd=$(job_field "$name" 2); args=$(job_field "$name" 3)
   [ -z "$cmd" ] && { echo "unknown job: $name" >&2; return 2; }
   [ "$args" = "''" ] && args=""
-  local start; start=$(date +%s)
+  local start out rc; start=$(date +%s)
+  # capture output so we can detect content-level escalations, but still show it
   # shellcheck disable=SC2086
-  "$cmd" $args; local rc=$?
+  out=$("$cmd" $args 2>&1); rc=$?
+  echo "$out"
   printf '%s\t%s\t%s\n' "$(date -Iseconds)" "$rc" "$(( $(date +%s) - start ))s" \
     > "$HB/$name"
+
+  # Alert on job FAILURE (couldn't run cleanly)...
+  if [ "$rc" -ne 0 ] && [ "$name" != "evals" ]; then
+    # evals exits 1 by design on any FAIL — handled as escalation below, not a crash
+    notify_alert critical "monitor: $name failed (rc=$rc)" \
+      "$(echo "$out" | tail -3)"
+  fi
+  # ...or on an ACTIONABLE content escalation the job printed.
+  case "$name" in
+    pin)   echo "$out" | grep -q 'STALE:' && notify_alert critical \
+             "Pin re-eval due" "$(echo "$out" | grep -E 'Pin |STALE:' | head -2)" ;;
+    drift) echo "$out" | grep -q 'drift detected' && notify_alert normal \
+             "Fleet drift detected" "$(echo "$out" | grep -i 'drift\|stale' | head -2)" ;;
+    evals) echo "$out" | grep -qE 'fail=[1-9]' && notify_alert critical \
+             "Rule evals FAILING" "$(echo "$out" | grep -E ' FAIL |fail=[1-9]' | head -4)" ;;
+    harness) echo "$out" | grep -q 'alert posted' && notify_alert normal \
+             "New claude-code release" "$(echo "$out" | tail -1)" ;;
+  esac
+  return $rc
+}
+
+# health with optional --notify: fire a desktop+email alert per dead/stale job
+health_notify() {
+  local out; out=$(health); local rc=$?
+  echo "$out"
+  if [ "$rc" -ne 0 ]; then
+    notify_alert critical "monitor: collector(s) stale" \
+      "$(echo "$out" | grep -E 'STALE|NO HEARTBEAT')"
+  fi
   return $rc
 }
 
@@ -71,8 +149,10 @@ health() {
 
 case "${1:-}" in
   list)  echo "$JOBS" | sed '/^\s*$/d' | awk '{printf "  %-16s %-8s %s\n",$1,$5,$2}' ;;
-  health) health ;;
-  all-daily)  for j in harness pin dashboard; do echo "-- $j"; run_job "$j"; done ;;
+  health) [ "${2:-}" = "--notify" ] && health_notify || health ;;
+  alerts) tail -n "${2:-20}" "$ALERT_LOG" 2>/dev/null | tac ;;
+  test-alert) notify_alert "${2:-normal}" "monitor test alert" "desktop + email + logged; findable in 'monitor alerts' and on the dashboard" ; echo "sent" ;;
+  all-daily)  for j in harness pin dashboard; do echo "-- $j"; run_job "$j"; done; health_notify >/dev/null ;;
   all-weekly) for j in drift usage; do echo "-- $j"; run_job "$j"; done ;;
   "" ) echo "usage: monitor <job|all-daily|all-weekly|health|list>"; exit 2 ;;
   *) run_job "$1" ;;
