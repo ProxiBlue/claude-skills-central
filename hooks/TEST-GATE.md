@@ -99,6 +99,15 @@ implementation HCF agent. When a project proves the loop works, promote to a
 
 ## Known limits (honest list)
 
+- **Harness exit-code model (v2.1.198, verified by live payload probe
+  2026-08-01)**: PostToolUse Bash fires only for exit-0 commands and the
+  payload has no exit-code field. The recorder therefore treats
+  hook-fired-for-test-command as a pass (correct on this version). If a
+  future harness starts firing PostToolUse for failing commands WITHOUT
+  adding an exit-code field, every failing run would record as a pass —
+  re-verify this on every harness version bump (payload probe recipe:
+  temp dump hook + headless session; see graphiti host-group fact
+  "Harness version pinning rationale").
 - Exit code is per whole Bash command: `phpunit; echo done` would mask a
   failure. Claude normally runs runners bare; not defended v1.
 - `git -C <path>` commit/push resolves root from session cwd, not `-C` — a

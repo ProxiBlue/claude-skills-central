@@ -14,8 +14,18 @@
 #       that HEAD passes the gate without a redundant re-run (the commit
 #       itself was already gated).
 #
-# Defensive: no set -e. Missing jq / unparseable input / no exit_code in the
-# payload → silent no-op. Never blocks anything (PostToolUse, exit 0 always).
+# Exit-code model (verified empirically 2026-08-01 on claude-code v2.1.198,
+# via payload dump in a live headless session): PostToolUse for Bash fires
+# ONLY when the command exited 0, and tool_response carries NO exit-code
+# field at all ({stdout, stderr, interrupted, isImage, noOutputExpected}).
+# Therefore: hook fired == command succeeded. We default the exit code to 0
+# when absent, and still honor a numeric field if a future harness adds one.
+# Failing runs produce no PostToolUse event, so they can never record a
+# false pass. (The original .tool_response.exit_code extraction recorded
+# nothing on any run — caught in the first live-fire, 2026-08-01.)
+#
+# Defensive: no set -e. Missing jq / unparseable input → silent no-op.
+# Never blocks anything (PostToolUse, exit 0 always).
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -31,6 +41,8 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
 . "$SCRIPT_DIR/test-gate-lib.sh"
 
 EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // .tool_response.exitCode // .tool_response.code // empty' 2>/dev/null)
+# v2.1.198: field absent and hook only fires on success — absent means 0
+case "$EXIT_CODE" in ''|*[!0-9]*) EXIT_CODE=0 ;; esac
 
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$CWD" ] && CWD=$(pwd)
@@ -61,8 +73,8 @@ trim_log() {
 }
 
 if tg_is_test_command "$CMD"; then
-  # numeric exit code required — no code, no verdict, no record
-  case "$EXIT_CODE" in ''|*[!0-9]*) exit 0 ;; esac
+  # non-zero only possible if a future harness adds the field — skip record
+  [ "$EXIT_CODE" = "0" ] || exit 0
   HASH=$(tg_state_hash "$ROOT")
   [ -z "$HASH" ] && exit 0
   jq -cn --arg ts "$TS" --arg state "$HASH" --argjson ec "$EXIT_CODE" --arg cmd "$CMD" \

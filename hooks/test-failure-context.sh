@@ -8,6 +8,14 @@
 # as on-demand reference; a trigger line in the global core points at it
 # for non-test failures like user bug reports).
 #
+# SCOPE LIMIT (discovered 2026-08-01, claude-code v2.1.198 payload probe):
+# PostToolUse Bash fires ONLY for exit-0 commands. A failing test run
+# (non-zero exit) never reaches this hook, so this catches ONLY
+# masked-exit cases: `runner | tee log`, `runner; echo done`, or runners
+# that exit 0 while printing failures. For real non-zero failures the
+# agent sees the failure directly in its tool result, and test-gate.sh
+# blocks any commit — the protocol pointer also lives in core-triggers.
+#
 # Fires when BOTH:
 #   - command looks like a test run (phpunit/pest/playwright/jest/etc.)
 #   - output contains failure markers
