@@ -1,0 +1,134 @@
+{
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "skillOverrides": {
+    "proxiblue-skills:billing-invoice": "on",
+    "hcf:plan-create": "on",
+    "hcf:plan-orchestrate": "on",
+    "hcf:project-setup": "on",
+    "hcf:project-update": "on"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/lucas/claude-skills-central/hooks/pre-commit-audit.sh",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/merge-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/gh-comment-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/php-debug-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/push-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/test-gate.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/lucas/claude-skills-central/hooks/post-commit-wiki-check.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/test-failure-context.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/test-evidence.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /home/lucas/claude-skills-central/scripts/statusline-combined.sh",
+    "padding": 0,
+    "refreshInterval": 5
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "pb-graphiti@pb-graphiti": true,
+    "pb-chatroom@pb-chatroom": true,
+    "hcf@hcf": true
+  },
+  "extraKnownMarketplaces": {
+    "hcf": {
+      "source": {
+        "source": "github",
+        "repo": "markshust/hcf"
+      }
+    }
+  },
+  "pluginConfigs": {
+    "pb-graphiti@pb-graphiti": {
+      "options": {
+        "graphiti_url": "http://localhost:8765/mcp"
+      }
+    }
+  },
+  "tui": "default",
+  "skipAutoPermissionPrompt": true,
+  "model": "claude-fable-5[1m]"
+}
