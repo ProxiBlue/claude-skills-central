@@ -107,6 +107,33 @@ def harness_seen():
     p = MON / "harness-watch" / "last-seen"
     return p.read_text().strip() if p.exists() else "?"
 
+# job name -> max age in days before STALE (mirrors monitor.sh registry)
+JOB_MAXAGE = {"drift": 8, "usage": 8, "evals": 32, "dashboard": 2,
+              "harness": 2, "pin": 2, "graphiti-backup": 2}
+
+def collectors_health():
+    """Read ~/monitor/heartbeats/<job> (iso\\trc\\tdur). Return list of
+    (name, last_date, age_days, ok) and an overall_ok flag."""
+    hbdir = MON / "heartbeats"
+    now = datetime.datetime.now()
+    rows = []
+    overall = True
+    for name, maxd in JOB_MAXAGE.items():
+        f = hbdir / name
+        if not f.exists():
+            rows.append((name, "never", None, False)); overall = False; continue
+        try:
+            iso = f.read_text().split("\t")[0].strip()
+            dt = datetime.datetime.fromisoformat(iso)
+            age = (now - dt.replace(tzinfo=None)).days
+            ok = age <= maxd
+            rows.append((name, iso.split("T")[0], age, ok))
+            if not ok:
+                overall = False
+        except Exception:
+            rows.append((name, "?", None, False)); overall = False
+    return rows, overall
+
 # ---- drift scoring -----------------------------------------------------------
 
 def project_issues(name, flags):
@@ -159,6 +186,7 @@ def main():
     evals = latest_evals()
     fleet = latest_fleet()
     seen = harness_seen()
+    health_rows, health_ok = collectors_health()
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     GUARDS = [("test_gate", "test-gate"), ("gh_comment", "gh-comment-guard"),
@@ -241,7 +269,17 @@ def main():
         <div class="tsub">vs baseline</div></div>
       <div class="tile {ver_state}"><div class="tlabel">Harness lag</div>
         <div class="tval mono">{html.escape(seen)}</div>
-        <div class="tsub">upstream · fleet {FLEET_TARGET} (set {PIN_SET_ON})</div></div>'''
+        <div class="tsub">upstream · fleet {FLEET_TARGET} (set {PIN_SET_ON})</div></div>
+      <div class="tile {'good' if health_ok else 'critical'}"><div class="tlabel">Collectors</div>
+        <div class="tval">{sum(1 for r in health_rows if r[3])}/{len(health_rows)}</div>
+        <div class="tsub">heartbeats fresh</div></div>'''
+
+    health_cells = ""
+    for name, last, age, ok in health_rows:
+        cls = "ok" if ok else "warn"
+        agestr = f"{age}d" if age is not None else last
+        health_cells += (f'<span class="chip {cls}" title="last run {last}">'
+                         f'{html.escape(name)} · {agestr}</span>')
 
     doc = f'''<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -304,6 +342,7 @@ tr:last-child td{{border-bottom:none}} td:first-child{{font-weight:600}}
 .chip{{font-size:.72rem;padding:.15em .55em;border-radius:5px;font-family:ui-monospace,Menlo,monospace}}
 .chip.ok{{color:var(--good);background:var(--good-soft)}}
 .chip.warn{{color:var(--warn);background:var(--warn-soft)}}
+.hstrip{{display:flex;flex-wrap:wrap;gap:.5rem}}
 .muted{{color:var(--muted)}}
 .note{{font-size:.78rem;color:var(--muted);margin-top:.6rem}}
 .two{{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}}
@@ -313,6 +352,13 @@ tr:last-child td{{border-bottom:none}} td:first-child{{font-weight:600}}
 <div class="sub">generated {now} · host · self-refreshes with the weekly crons</div></header>
 
 <div class="tiles">{tiles}</div>
+
+<section><h2>Collectors — liveness</h2>
+<div class="hstrip">{health_cells}</div>
+<p class="note">Each telemetry job records a heartbeat on every run; a job that stops
+writing turns red here (age &gt; its expected cadence). This is the dead-man's
+switch — a silently-dead cron becomes visible on the dashboard you already open,
+with no separate watcher. Run <code>monitor health</code> for the same check in the shell.</p></section>
 
 <section><h2>Guard fires — cumulative</h2>{bars}
 <p class="note">How often each deterministic guard actually blocked something in real sessions.
