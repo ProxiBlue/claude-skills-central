@@ -30,8 +30,10 @@ GRAPHITI_BACKUP="$HOME/claude-plugins-central/seed/marketplaces/pb-graphiti/scri
 # active X session); email is best-effort (needs SMTP creds in the config file
 # below). Neither failing ever blocks a job.
 #
-# Email config (dormant until filled): ~/.config/monitor-notify.env with
-#   NOTIFY_EMAIL_TO, SMTP_URL (e.g. smtps://mail.host:465), SMTP_USER, SMTP_PASS
+# Email backup uses Resend's HTTP API (same provider ai_assistant/webhooks
+# already uses — no MTA, no SMTP). Config at ~/.config/monitor-notify.env; the
+# shipped template sources the key LIVE from the ai_assistant .env so the secret
+# is never duplicated. Needs: RESEND_API_KEY, NOTIFY_EMAIL_TO, RESEND_FROM_EMAIL.
 NOTIFY_CFG="$HOME/.config/monitor-notify.env"
 
 notify_desktop() {  # <urgency> <title> <body>
@@ -46,13 +48,18 @@ notify_email() {  # <subject> <body>
   [ -f "$NOTIFY_CFG" ] || return 0
   # shellcheck disable=SC1090
   . "$NOTIFY_CFG"
-  [ -n "${SMTP_URL:-}" ] && [ -n "${NOTIFY_EMAIL_TO:-}" ] || return 0
-  local from="${SMTP_USER:-monitor@localhost}"
-  local msg; msg=$(printf 'From: monitor <%s>\nTo: %s\nSubject: %s\n\n%s\n' \
-    "$from" "$NOTIFY_EMAIL_TO" "$1" "$2")
-  printf '%s' "$msg" | curl -sS --url "$SMTP_URL" \
-    --mail-from "$from" --mail-rcpt "$NOTIFY_EMAIL_TO" \
-    --user "${SMTP_USER}:${SMTP_PASS}" -T - >/dev/null 2>&1 || true
+  [ -n "${RESEND_API_KEY:-}" ] && [ -n "${NOTIFY_EMAIL_TO:-}" ] || return 0
+  local from="${RESEND_FROM_EMAIL:-monitor <onboarding@resend.dev>}"
+  local payload
+  payload=$(NOTIFY_EMAIL_TO="$NOTIFY_EMAIL_TO" FROM="$from" SUBJ="$1" BODY="$2" \
+    python3 -c 'import json,os; print(json.dumps({
+      "from": os.environ["FROM"], "to": [os.environ["NOTIFY_EMAIL_TO"]],
+      "subject": "[monitor] " + os.environ["SUBJ"],
+      "text": os.environ["BODY"]}))')
+  curl -sS -X POST "https://api.resend.com/emails" \
+    -H "Authorization: Bearer ${RESEND_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" >/dev/null 2>&1 || true
 }
 
 ALERT_LOG="$HOME/monitor/alerts.log"
