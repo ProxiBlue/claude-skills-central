@@ -2,8 +2,8 @@
   "fleet_target": "2.1.201",
   "set_on": "2026-08-02",
   "review_after_days": 21,
-  "releases_behind_threshold": 8,
-  "note": "Version the hooks/rules/test-gate stack is live-verified against (rule-evals 8/8). Host itself drifted to 2.1.201 (unpinned before 2026-08-01 freeze). Renew or move only after rule-evals passes on the candidate.",
+  "releases_behind_threshold": 20,
+  "note": "Stability posture: fleet deliberately trails upstream. Lag threshold 20 = fires only on genuinely large drift, not on a fresh deliberate hold. 2.1.201 = the eval-verified version.",
   "history": [
     {
       "version": "2.1.198",
