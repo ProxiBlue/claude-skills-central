@@ -1,11 +1,9 @@
 # Magento 2 / Mage-OS Dev Guide
 
-## Mandatory Rules (always loaded)
+## Always-on core (situational rules load on trigger via core-triggers; mechanics enforced by hooks)
 
-@.claude/rules/investigation.md
-@.claude/rules/gh-ticket-comments.md
-@.claude/rules/hcf-plan-orchestrate.md
 @.claude/rules/model-tiering.md
+@.claude/rules/core-triggers.md
 
 ## Agent Delegation (read first)
 
