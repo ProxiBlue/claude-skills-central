@@ -1,10 +1,19 @@
 {
-  "fleet_target": "2.1.198",
-  "set_on": "2026-08-01",
+  "fleet_target": "2.1.201",
+  "set_on": "2026-08-02",
   "review_after_days": 21,
   "releases_behind_threshold": 8,
   "note": "Version the hooks/rules/test-gate stack is live-verified against (rule-evals 8/8). Host itself drifted to 2.1.201 (unpinned before 2026-08-01 freeze). Renew or move only after rule-evals passes on the candidate.",
   "history": [
-    {"version": "2.1.198", "set_on": "2026-08-01", "reason": "initial fleet target — stack verified against it"}
+    {
+      "version": "2.1.198",
+      "set_on": "2026-08-01",
+      "reason": "initial fleet target — stack verified against it"
+    },
+    {
+      "version": "2.1.201",
+      "set_on": "2026-08-02",
+      "reason": "moved after rule-evals"
+    }
   ]
 }
