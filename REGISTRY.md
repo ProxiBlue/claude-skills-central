@@ -12,7 +12,11 @@ MANDATORY before any pin move and after any rule/hook edit. Real-usage
 telemetry: `scripts/usage_telemetry.py` (weekly Mon 06:45) — guard-fire +
 banned-phrase counts from real transcripts; reuses pb-graphiti
 iter_sessions for discovery. Three-layer measurement (config drift /
-synthetic behaviour / real usage) closes review rec #4.
+synthetic behaviour / real usage) closes review rec #4. All 7
+telemetry/backup jobs run behind one dispatcher (`scripts/monitor.sh
+<job>|all-daily|all-weekly|health`, 4 cron lines) that records a
+heartbeat per run; the dashboard "Collectors" panel + `monitor health`
+turn red on a dead job — the dead-man switch, no watcher-of-watchers.
 
 ## Ops checklist (every load-bearing row)
 
