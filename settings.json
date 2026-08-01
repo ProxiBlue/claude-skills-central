@@ -274,6 +274,16 @@
             "command": "bash /var/www/html/.claude/hooks/php-debug-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-gate.sh",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -294,6 +304,16 @@
             "type": "command",
             "command": "bash /var/www/html/.claude/hooks/test-failure-context.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-evidence.sh",
+            "timeout": 15
           }
         ]
       },
