@@ -5,8 +5,10 @@ depends on it → must pass the ops checklist. **Experiment** = free to churn,
 break, or die; NOT allowed in a client-facing path until promoted.
 
 Origin: 2026-07-31 tooling review rec #2. Promotion = move the row up AND tick
-the checklist. Drift check: `scripts/fleet-inventory.sh` (run after config
-changes; candidate for weekly cron).
+the checklist. Drift check: `scripts/fleet-inventory.sh` (weekly cron, Mon
+06:30, alerts via chatroom). Behaviour check: `scripts/rule-evals.sh` — 8
+compliance probes vs the live setup (rec #3, Phases A+B, 8/8 on 2.1.201);
+MANDATORY before any pin move and after any rule/hook edit.
 
 ## Ops checklist (every load-bearing row)
 
