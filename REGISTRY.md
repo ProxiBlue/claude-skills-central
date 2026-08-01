@@ -33,14 +33,14 @@ synthetic behaviour / real usage) closes review rec #4.
 | hooks: test-gate + test-evidence | commit/push without tests | wired ✓ · synthetic 40/40 + live-fired ✓ (2026-08-01, found+fixed payload bug) · kill: 3 documented · **pending: first real-Magento fire; 3 running containers stale until restart** |
 | hooks: gh-comment-guard, php-debug-guard | client-facing comment style; diff pollution | wired ✓ · synthetic+in-session fire ✓ · kill: rules-disable |
 | ~/claude-code-magento-agents | HCF review pipeline (10 phase-enrolled agents, 13 projects) | wired ✓ · git clean ✓ · NOT covered by inventory sweep until 2026-08-01 — now tracked |
-| pb-graphiti plugin + Graphiti infra (Neo4j, Ollama, Voyage) | fleet memory, session recall | wired ✓ · **backup scripts uncommitted (known TODO)** — checklist FAIL until landed |
+| pb-graphiti plugin + Graphiti infra (Neo4j, Ollama, Voyage) | fleet memory, session recall | wired ✓ · backups FIXED+verified 2026-08-01 (Community offline dump, e0b750d; 307M, nightly cron 02:30) · kill: stop stack |
 | HCF (upstream) + pb-hcf wire | plan orchestration | **version split-brain; 2 legacy pipeline.md; 4 projects unwired — phase-2 target** |
 | pb-chatroom protocol + cron executors | autonomous PRs to client repos | wired pps+lcd · kill switches documented in ddev-cron-executor.md |
 | gh-comment-hidden.sh | ticket-comment mandate | wired ✓ (hook now forces it) |
 | xdebug-mcp | runtime debugging discipline | seeded per project · verify per-project on phase-2 visit |
 | .ddev ai-mounts pattern + settings.json file-mount | everything above reaching containers | **file-mount inode fragility — settings edits need ddev restart; 3 stale now.** Consider dir-mounting a conf dir instead (phase-2 decision) |
-| claude-code pin | harness behaviour stability | **Fleet target: 2.1.198** (decided 2026-08-01 — the version the hooks/rules stack is live-verified against). lcd aligned; remaining 152/109 refs align during each project's phase-2 visit. Re-eval trigger for future bumps: payload probe + /context check + rule-eval BEFORE moving the pin (recipe in hooks/TEST-GATE.md + graphiti host facts) |
-| host ~/.claude/CLAUDE.md + settings.json | host agent behaviour | **FAIL: outside any git.** Fix: symlink into this repo or sync script — pick in phase 2 |
+| claude-code pin | harness behaviour stability | **Fleet target: 2.1.198** (host/pin-decision.json is source of truth; pin-age-check.sh escalates when stale by age>21d or lag>8 releases). lcd aligned; remaining 152/109 refs align during each project's phase-2 visit. Re-eval trigger for future bumps: payload probe + /context check + rule-eval BEFORE moving the pin (recipe in hooks/TEST-GATE.md + graphiti host facts) |
+| host ~/.claude/CLAUDE.md + settings.json | host agent behaviour | tracked 2026-08-01 in host/ (symlinked live), autoupdater frozen · kill: rm symlink, restore .pre-symlink.bak |
 
 ## Experiment (churn freely — keep OUT of client-facing paths)
 
