@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/composer.json"
+  - "**/composer.lock"
+---
+
 # Upgrade / Update / New-Module Verification — MANDATORY
 
 Applies to any Magento / Mage-OS **upgrade**, version **update**, dependency bump, or **new module create**. Origin: lcdscreen #385 (Mage-OS 2.3.0→3.2.0, 2026-07-15) — an AI ran a hyva-frontend-weighted golden-path subset plus a single admin smoke and declared the upgrade "verified"; it had NOT run admin checkout or the custom-module regression specs. A human (Lucas) caught 12 admin-test failures and prevented a regression reaching UAT. This rule exists so that gap never recurs.

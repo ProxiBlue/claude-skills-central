@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/.gitnexus/**"
+---
+
 # Codegraph-First Protocol — MANDATORY
 
 When a task involves planning, investigation, impact analysis, "find where X is used / defined / wired", or any completeness question over Magento/PHP code, query the pb-codegraph MCP server FIRST — before grep, before Glob, before reading files. Grep misses Magento's XML-driven indirection (plugins, observers, DI preferences, layout hooks); the code graph carries those as first-class edges.

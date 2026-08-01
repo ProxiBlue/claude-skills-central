@@ -1,3 +1,9 @@
+---
+paths:
+  - ".claude/plans/**"
+  - "plans/**"
+---
+
 # HCF plan-orchestrate — MANDATORY pb-hcf wire (replaces legacy overlay)
 
 For any plan orchestration in a Magento / Mage-OS project, the project MUST be wired with `/pb-hcf:wire` first. After that, `/hcf:plan-orchestrate` runs natively — **no wrapper.**

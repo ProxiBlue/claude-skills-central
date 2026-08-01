@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/.github/**"
+---
+
 # GitHub / GitLab ticket comments — MANDATORY
 
 Every AI-posted comment on a GitHub issue, GitHub PR, or GitLab ticket MUST be (a) bare-minimal in caveman style and (b) minimized as off-topic immediately after posting. This applies to ALL projects in the fleet, not just the originating one.

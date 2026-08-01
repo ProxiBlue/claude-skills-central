@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.php"
+  - "**/*.phtml"
+---
+
 # PHP Debugging Protocol — MANDATORY
 
 When debugging PHP runtime behaviour (a value is wrong, a branch is taken that shouldn't be, a request returns the wrong shape, a test asserts the wrong state, a function returns null when it shouldn't), use the **xdebug-mcp** tools. These give real runtime data instead of guesses.

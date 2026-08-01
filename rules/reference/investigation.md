@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.log"
+  - "**/var/log/**"
+  - "**/test-results/**"
+  - "**/playwright-report/**"
+---
+
 # Investigation Protocol — MANDATORY
 
 When a test fails, a system errors, or the user reports a bug, behave as follows. These steps are not guidance — they are mandatory. Skipping any of them is the exact failure mode being banned here.

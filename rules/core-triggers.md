@@ -1,6 +1,6 @@
 # Rule triggers — on-demand loading (always-on core)
 
-Full rules live in `claude-skills-central/rules/reference/` (host: `~/claude-skills-central/rules/reference/`, container: `/var/www/html/.claude/rules/reference/`). Read the full rule BEFORE acting when its trigger hits. Hooks enforce the mechanical parts regardless.
+Full rules live in `claude-skills-central/rules/reference/` (host: `~/claude-skills-central/rules/reference/`, container: `/var/www/html/.claude/rules/reference/`). Each carries `paths:` frontmatter — the harness auto-attaches it when you read a matching file (PHP files → php-debugging, logs/test-results → investigation, composer.json → upgrade-verification, plan files → hcf-plan-orchestrate). When a trigger below hits and the rule has NOT auto-attached (host sessions, non-matching flows), Read it manually BEFORE acting. Hooks enforce the mechanical parts regardless.
 
 | Trigger | Action |
 |---|---|
