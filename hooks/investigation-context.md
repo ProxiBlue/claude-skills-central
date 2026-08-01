@@ -12,4 +12,4 @@ REPORT FORMAT: WHAT I CHANGED THIS SESSION / WHAT THE ARTEFACTS SHOW / COMPARE T
 
 Fine to say: "don't know yet — reading logs now" / "my change at <file>:<line> could plausibly cause this; ruling out via <X>".
 
-Full protocol: rules/investigation.md (claude-skills-central).
+Full protocol: rules/reference/investigation.md (claude-skills-central).

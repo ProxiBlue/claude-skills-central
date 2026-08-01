@@ -5,7 +5,7 @@
 #   debug-only error_log() added to PHP source. Use the xdebug-mcp tools
 #   instead (xstep / xtrace / xprofile / xcoverage / xback / xcompare).
 #
-# Replaces the "Banned edits" section of rules/php-debugging.md as prose
+# Replaces the "Banned edits" section of rules/reference/php-debugging.md as prose
 # (file kept as on-demand reference for the tool-selection table).
 #
 # Blocks (exit 2): Edit/Write adding a banned call to a .php/.phtml file.
@@ -57,7 +57,7 @@ if echo "$NEW" | grep -qE "$PATTERN"; then
   echo "reach the code path (cron/queue worker)? Say so to the user before" >&2
   echo "falling back. Genuine production use of this function? Ask the user" >&2
   echo "— they can add 'php-debug-guard' to .claude/rules-disable." >&2
-  echo "Full reference: rules/php-debugging.md (claude-skills-central)." >&2
+  echo "Full reference: rules/reference/php-debugging.md (claude-skills-central)." >&2
   exit 2
 fi
 

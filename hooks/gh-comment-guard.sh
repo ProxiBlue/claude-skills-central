@@ -5,7 +5,7 @@
 #   gh-comment-hidden.sh (posts + minimizes as off-topic), never bare
 #   `gh issue/pr comment`. Content: max 5 lines, caveman, status prefix.
 #
-# Replaces the always-loaded rules/gh-ticket-comments.md prose (kept as
+# Replaces the always-loaded rules/reference/gh-ticket-comments.md prose (kept as
 # on-demand reference). Origin: ITToolsAU/LaptopLCDScreen #352.
 #
 # Blocks (exit 2):
@@ -53,7 +53,7 @@ block() {
   echo "belongs in the PR description or commit body, not the ticket." >&2
   echo "GitLab: same content rules; no minimize API — post terse and move on." >&2
   echo "" >&2
-  echo "Full reference: rules/gh-ticket-comments.md (claude-skills-central)." >&2
+  echo "Full reference: rules/reference/gh-ticket-comments.md (claude-skills-central)." >&2
   echo "Do not work around via gh api, heredocs, or sub-agents." >&2
   exit 2
 }

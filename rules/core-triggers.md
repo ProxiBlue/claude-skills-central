@@ -1,6 +1,6 @@
 # Rule triggers — on-demand loading (always-on core)
 
-Full rules live in `claude-skills-central/rules/` (host: `~/claude-skills-central/rules/`, container: `/var/www/html/.claude/rules/`). Read the full rule BEFORE acting when its trigger hits. Hooks enforce the mechanical parts regardless.
+Full rules live in `claude-skills-central/rules/reference/` (host: `~/claude-skills-central/rules/reference/`, container: `/var/www/html/.claude/rules/reference/`). Read the full rule BEFORE acting when its trigger hits. Hooks enforce the mechanical parts regardless.
 
 | Trigger | Action |
 |---|---|

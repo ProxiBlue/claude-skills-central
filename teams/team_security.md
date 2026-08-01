@@ -21,7 +21,7 @@ Every agent in this team has the full skill catalogue available. The relevant on
 - **`database-query-analysis`** — direct DB inspection via the database / magento2-dev MCPs. Used by Trio 1 (verify actual query construction) and Trio 3 (verify ACL state).
 - **`magento-diagnostic`** — cache, index, config state. Used by Trio 2 (Defensive Auditor reads CSP/header config) and Trio 6 (session/cookie config).
 - **`audit-loop`** — iterative audit pattern. The team output can feed this loop for fix-and-re-audit.
-- **`workflow-investigate-bug`** — read-only forensic protocol; matches our read-only stance and the mandatory investigation protocol at `~/claude-skills-central/rules/investigation.md`.
+- **`workflow-investigate-bug`** — read-only forensic protocol; matches our read-only stance and the mandatory investigation protocol at `~/claude-skills-central/rules/reference/investigation.md`.
 - **`github-analysis`** — when the audit target is a GitHub ticket / PR.
 
 ### Agents (in `claude-plugins-central` marketplaces)

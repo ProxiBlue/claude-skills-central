@@ -72,7 +72,7 @@ Originally implemented locally here (rule file + dedicated hook) on 2026-06-25 t
 
 ### Investigation rule is unconditional
 
-`rules/investigation.md` mandates: `git diff --stat HEAD` + `git status` FIRST on any failure report, then read ALL artefacts, then form hypothesis. Skipping = banned. Phrases like "must be a flake" / "not my code" are explicitly banned until evidence cited.
+`rules/reference/investigation.md` mandates: `git diff --stat HEAD` + `git status` FIRST on any failure report, then read ALL artefacts, then form hypothesis. Skipping = banned. Phrases like "must be a flake" / "not my code" are explicitly banned until evidence cited.
 
 ## Conventions for adding new features
 

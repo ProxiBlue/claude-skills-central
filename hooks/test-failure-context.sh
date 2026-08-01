@@ -4,7 +4,7 @@
 # When a test-runner command fails, injects the compact investigation
 # protocol (hooks/investigation-context.md) into context AT THE FAILURE
 # MOMENT — full attention weight, instead of a session-start rule diluted
-# 100k tokens ago. Replaces always-loading rules/investigation.md (kept
+# 100k tokens ago. Replaces always-loading rules/reference/investigation.md (kept
 # as on-demand reference; a trigger line in the global core points at it
 # for non-test failures like user bug reports).
 #
