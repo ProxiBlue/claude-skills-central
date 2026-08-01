@@ -33,20 +33,34 @@ bash "$SCRIPT_DIR/fleet-inventory.sh" > "$RAW" 2>/dev/null
 [ -s "$RAW" ] || { echo "[$(date -Iseconds)] inventory produced no output — aborting"; exit 1; }
 
 # Normalize: keep project name + config fields only
+# In-scope allowlist — only these projects count as drift (the rest are
+# non-Magento / archived / not-yet-needing the tooling). Missing file = all.
+SCOPE_FILE="$HOME/claude-skills-central/host/tooling-scope.txt"
+in_scope() {
+  [ -f "$SCOPE_FILE" ] || return 0
+  grep -qxF "$1" <(grep -vE '^\s*#|^\s*$' "$SCOPE_FILE")
+}
+
 normalize() {
   awk '
     /^=== / { split($0, a, " \\| "); sub(/^=== /, "", a[1]); proj=a[1]; next }
     /branch=/ { line=$0; sub(/branch=[^ ]+ /, "", line); sub(/dirty=[0-9]+ \| /, "", line); print proj ": " line; next }
     /settings=/ { line=$0; sub(/ settings=[^ ]*/, "", line); print proj ": " line; next }
     /pipeline\.md=|ai-mounts=|test-gate/ { print proj ": " $0 }
-  ' "$1" | sed 's/[[:space:]]\+/ /g'
+  ' "$1" | sed 's/[[:space:]]\+/ /g' | while IFS= read -r ln; do
+    p="${ln%%:*}"; in_scope "$p" && echo "$ln"
+  done
 }
 
 CURRENT="$SNAPDIR/.current-normalized.txt"
 normalize "$RAW" > "$CURRENT"
 
-# Fresh (non-diffed) signal: stale settings mounts right now
-STALE_NOW=$(grep -B4 'settings=STALE' "$RAW" | grep '^=== ' | sed 's/^=== //; s/ |.*//' | tr '\n' ' ')
+# Fresh (non-diffed) signal: stale settings mounts right now — in-scope only
+STALE_NOW=""
+for p in $(grep -B4 'settings=STALE' "$RAW" | grep '^=== ' | sed 's/^=== //; s/ |.*//'); do
+  in_scope "$p" && STALE_NOW="$STALE_NOW $p"
+done
+STALE_NOW=$(echo "$STALE_NOW" | sed 's/^ *//')
 
 if [ ! -f "$BASELINE" ]; then
   cp "$CURRENT" "$BASELINE"

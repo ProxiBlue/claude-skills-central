@@ -1,0 +1,11 @@
+# Projects IN SCOPE for the AI-tooling stack (guards, gate, wire, pin alignment).
+# One ddev project name per line. Drift telemetry + dashboard ALERT/score only
+# on these; the full fleet-inventory sweep still lists everything for visibility,
+# but out-of-scope projects (non-Magento, archived, or not yet needing the
+# tooling) are not drift and must not generate noise.
+#
+# Add a project here when it starts needing the tooling; the operator adjusts
+# the rest as needed, when needed. As of 2026-08-02 only these three require it.
+pvcpipesupplies
+lcd-mageos
+webhooks

@@ -32,6 +32,19 @@ def _fleet_target():
 
 FLEET_TARGET, PIN_SET_ON = _fleet_target()
 
+def _in_scope():
+    p = Path(os.path.expanduser("~/claude-skills-central/host/tooling-scope.txt"))
+    if not p.exists():
+        return None  # None = no filter (all in scope)
+    names = set()
+    for ln in p.read_text().splitlines():
+        ln = ln.strip()
+        if ln and not ln.startswith("#"):
+            names.add(ln)
+    return names
+
+SCOPE = _in_scope()
+
 # ---- parse -------------------------------------------------------------------
 
 def read_usage_rows():
@@ -171,9 +184,13 @@ def main():
     # status tiles
     eval_state = "good" if evals and evals["npass"] == evals["n"] else ("critical" if evals else "muted")
     eval_val = f'{evals["npass"]}/{evals["n"]}' if evals else "—"
+    def scoped(name):
+        return SCOPE is None or name in SCOPE
     drift_projects = []
     if fleet:
         for name, d in fleet["proj"].items():
+            if not scoped(name):
+                continue
             iss = project_issues(name, d["flags"])
             if iss:
                 drift_projects.append((name, iss))
@@ -199,6 +216,8 @@ def main():
     fleet_rows = ""
     if fleet:
         for name, d in sorted(fleet["proj"].items()):
+            if not scoped(name):
+                continue
             iss = project_issues(name, d["flags"])
             if iss:
                 tag = f'<span class="chip warn">{html.escape(", ".join(iss))}</span>'
@@ -311,11 +330,13 @@ A guard idle for many weeks is a pruning candidate; a spike signals workflow fri
 <section><h2>Rule evals — {evals["stamp"] if evals else "n/a"} · run {evals["runs"] if evals else 0}</h2>
 {eval_strip}</section>
 
-<section><h2>Fleet consolidation — {fleet["stamp"] if fleet else "n/a"}</h2>
+<section><h2>Fleet consolidation — in-scope projects — {fleet["stamp"] if fleet else "n/a"}</h2>
 <table><thead><tr><th>Project</th><th>claude-code</th><th>Status</th></tr></thead>
 <tbody>{fleet_rows}</tbody></table>
-<p class="note">Drift vs fleet target {FLEET_TARGET}. Clean = aligned pin, wired, no legacy
-pipeline.md / dangling refs / stale mounts.</p></section>
+<p class="note">Only projects that need the tooling (host/tooling-scope.txt). Drift vs
+fleet target {FLEET_TARGET}. Clean = aligned pin, wired, no legacy pipeline.md /
+dangling refs / stale mounts. Out-of-scope projects (non-Magento, archived) are
+not shown and do not count as drift.</p></section>
 
 </div></body></html>'''
 
