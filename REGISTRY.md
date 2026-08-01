@@ -33,7 +33,7 @@ changes; candidate for weekly cron).
 | gh-comment-hidden.sh | ticket-comment mandate | wired ✓ (hook now forces it) |
 | xdebug-mcp | runtime debugging discipline | seeded per project · verify per-project on phase-2 visit |
 | .ddev ai-mounts pattern + settings.json file-mount | everything above reaching containers | **file-mount inode fragility — settings edits need ddev restart; 3 stale now.** Consider dir-mounting a conf dir instead (phase-2 decision) |
-| claude-code pin | harness behaviour stability | **FAIL: 109/152/198 split, 3 projects carry two refs. Phase-2: align to one version + re-eval trigger** |
+| claude-code pin | harness behaviour stability | **Fleet target: 2.1.198** (decided 2026-08-01 — the version the hooks/rules stack is live-verified against). lcd aligned; remaining 152/109 refs align during each project's phase-2 visit. Re-eval trigger for future bumps: payload probe + /context check + rule-eval BEFORE moving the pin (recipe in hooks/TEST-GATE.md + graphiti host facts) |
 | host ~/.claude/CLAUDE.md + settings.json | host agent behaviour | **FAIL: outside any git.** Fix: symlink into this repo or sync script — pick in phase 2 |
 
 ## Experiment (churn freely — keep OUT of client-facing paths)
