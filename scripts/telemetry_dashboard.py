@@ -20,7 +20,17 @@ from pathlib import Path
 
 MON = Path(os.path.expanduser("~/monitor"))
 OUT = MON / "dashboard.html"
-FLEET_TARGET = "2.1.198"   # registry decision 2026-08-01
+
+def _fleet_target():
+    import json
+    p = Path(os.path.expanduser("~/claude-skills-central/host/pin-decision.json"))
+    try:
+        d = json.loads(p.read_text())
+        return d.get("fleet_target", "2.1.198"), d.get("set_on", "?")
+    except Exception:
+        return "2.1.198", "?"
+
+FLEET_TARGET, PIN_SET_ON = _fleet_target()
 
 # ---- parse -------------------------------------------------------------------
 
@@ -212,7 +222,7 @@ def main():
         <div class="tsub">vs baseline</div></div>
       <div class="tile {ver_state}"><div class="tlabel">Harness lag</div>
         <div class="tval mono">{html.escape(seen)}</div>
-        <div class="tsub">upstream · fleet {FLEET_TARGET}</div></div>'''
+        <div class="tsub">upstream · fleet {FLEET_TARGET} (set {PIN_SET_ON})</div></div>'''
 
     doc = f'''<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
