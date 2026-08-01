@@ -8,7 +8,11 @@ Origin: 2026-07-31 tooling review rec #2. Promotion = move the row up AND tick
 the checklist. Drift check: `scripts/fleet-inventory.sh` (weekly cron, Mon
 06:30, alerts via chatroom). Behaviour check: `scripts/rule-evals.sh` — 8
 compliance probes vs the live setup (rec #3, Phases A+B, 8/8 on 2.1.201);
-MANDATORY before any pin move and after any rule/hook edit.
+MANDATORY before any pin move and after any rule/hook edit. Real-usage
+telemetry: `scripts/usage_telemetry.py` (weekly Mon 06:45) — guard-fire +
+banned-phrase counts from real transcripts; reuses pb-graphiti
+iter_sessions for discovery. Three-layer measurement (config drift /
+synthetic behaviour / real usage) closes review rec #4.
 
 ## Ops checklist (every load-bearing row)
 
