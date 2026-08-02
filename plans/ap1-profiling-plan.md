@@ -1,7 +1,58 @@
 # AP-1 Plan — Runtime performance profiling in the plan/build loop
 
 **Supersedes** `~/claude-plugins-central/hcf-xhgui-plan.md` (May 2026, blocked on
-retired pb-gitnexus). **Date:** 2026-08-02. **Status:** plan, not started.
+retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phase 0 DONE; building.
+
+## ⚡ Phase 0 findings (2026-08-02) — the design simplified
+
+Probed on pps (`ddev xhprof on`, `xhprof_mode: xhgui`). Decisive result:
+
+- **xhgui stores traces in a MySQL table `xhgui.results`** (PDO save handler),
+  on the same DB server as the project — NOT MongoDB, NOT an HTTP-only UI.
+- **URL-level metrics are directly SQL-queryable** — flat columns `main_wt`
+  (wall time µs), `main_cpu`, `main_mu`/`main_pmu` (memory), `main_ct` (call
+  count), plus `url`, `simple_url`, `request_ts`. Verified: our test request
+  landed as a row (`/`, main_wt 7.09s cold).
+- **Function-level drill-down is in the `profile` longtext (xhprof JSON)**, keyed
+  `caller==>callee` with ct/wt/cpu/mu/pmu. **MySQL `JSON_EXTRACT` works on it** —
+  verified pulling `main()` wall time. So top-functions + SQL-query-count are
+  derivable in SQL (or a small view), no external parser needed.
+
+**Consequence: no custom read-MCP wrapper is needed.** The agent already has a
+database MCP (`mcp__database__execute_query` / `mcp__magento2-dev__db-query`), so
+read access to perf data is *just SQL against `xhgui.results`*. This deletes the
+entire "Phase 1/2 MCP wrapper" from the May plan — a big maintenance-surface win,
+consistent with the minimize-burden principle.
+
+### Revised (simpler) design
+1. **Access = SQL via the existing DB MCP** — nothing to build or maintain.
+2. **A context-doc playbook** `.claude/xhgui.md` teaching the agent the queries
+   (how-slow-is-this-URL; recent-trend; top-functions; before/after compare).
+3. **Optional: a SQL view** (`xhgui_top_functions`) that unpacks the profile JSON
+   for drill-down + SQL-query-count, so the agent queries a clean view.
+4. **Wire into HCF phases via the playbook** (pre-plan perf-context;
+   post-implementation regression compare; optional pre-commit perf-gate).
+
+### Revised phases
+- ~~Phase 0 probe~~ **DONE.**
+- ~~Phase 1 MCP read tools~~ **DELETED** — SQL via existing DB MCP replaces it.
+- **Phase 1' — playbook + view** (~half day): write `.claude/xhgui.md` with the
+  query patterns + the optional top-functions SQL view. Live-fire: ask the agent
+  "how slow is the homepage and what's the top function" → it queries and answers.
+- **Phase 2 — HCF pre-plan wiring** (~half day): wire the playbook so plans pull
+  perf context for touched URLs (the `hcf-xhgui` plugin, mirroring pb-codegraph —
+  but now it's a context-doc + wire skill only, no MCP server).
+- **Phase 3 — regression compare** (~half day, was ~1 day): a query/helper that
+  diffs before/after `main_wt` + query-count for a URL; post-implementation
+  perf-reviewer cites it. Trace capture via Playwright (already present).
+- **Phase 4 — perf-gate** *(optional)*: block commit on hot-path regression.
+
+The 80/20 is now even cheaper: **Phase 1'+2 ≈ 1 day** (was ~1.5), because the
+MCP-wrapper build evaporated.
+
+---
+
+## Original plan (pre-Phase-0) — retained for reference below
 
 ## Objective
 
