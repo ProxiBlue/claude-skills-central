@@ -21,8 +21,36 @@ LAST_FILE="$STATEDIR/last-seen"
 CHATROOM_URL="${PB_CHATROOM_REST_URL:-http://127.0.0.1:7476}"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 
-CUR=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
-[ -z "$CUR" ] && { echo "[$(date -Iseconds)] npm view failed"; exit 1; }
+FAIL_FILE="$STATEDIR/npm-fail-count"
+
+# Query upstream with retries. A single npm/registry/DNS blip is transient noise,
+# not an actionable event — so a one-off miss must NOT page you (an rc!=0 here
+# fires monitor's "harness failed" email with a cryptic body). Only a PERSISTENT
+# failure — the check genuinely not working for days — is worth surfacing.
+CUR=""
+for attempt in 1 2 3; do
+  CUR=$(npm view @anthropic-ai/claude-code version 2>/dev/null)
+  [ -n "$CUR" ] && break
+  sleep 5
+done
+
+if [ -z "$CUR" ]; then
+  fails=$(( $(cat "$FAIL_FILE" 2>/dev/null || echo 0) + 1 ))
+  echo "$fails" > "$FAIL_FILE"
+  if [ "$fails" -ge 3 ]; then
+    # 3+ consecutive days down — now it's real, and worded so it means something.
+    echo "claude-code upstream version-check has failed $fails runs in a row."
+    echo "The npm registry is unreachable from this host (network / npm / DNS)."
+    echo "Impact: ONLY the release-watch is blind — no other tooling is broken."
+    echo "Check by hand:  npm view @anthropic-ai/claude-code version"
+    exit 1
+  fi
+  # transient (<3): stay quiet. Logged to /tmp/monitor.log, retries tomorrow.
+  echo "[$(date -Iseconds)] npm view unavailable (transient, fail ${fails}/3) — no alert"
+  exit 0
+fi
+# success — clear any prior failure streak
+rm -f "$FAIL_FILE" 2>/dev/null
 
 if [ ! -f "$LAST_FILE" ]; then
   echo "$CUR" > "$LAST_FILE"
