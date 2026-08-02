@@ -1,7 +1,7 @@
 # AP-1 Plan — Runtime performance profiling in the plan/build loop
 
 **Supersedes** `~/claude-plugins-central/hcf-xhgui-plan.md` (May 2026, blocked on
-retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phase 0 + Phase 1' DONE (live-fired); Phase 2 next.
+retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phases 0, 1', 2 DONE. Phase 2 (pps): playbook wired via .claude/CLAUDE.md pointer; in-container agent discovers+reads it unprompted (host-side didn't — .claude/CLAUDE.md only loads in-container). Query-in-plan is prompt-dependent (Phase 1' queried+cited numbers when engaged). Phases 3-4 (regression + gate) = decide later.
 
 ## ⚡ Phase 0 findings (2026-08-02) — the design simplified
 
