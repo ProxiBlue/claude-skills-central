@@ -64,31 +64,34 @@ the tooling, ADD IT to that script's REPOS list.
 8. Verify: session in pps → SessionStart shows graphiti recall + chatroom inbox;
    `git commit` fires captainhook; `/hcf:plan-create` blocked until `/model fable` (fable-reminder).
 
-## Off-site backups (Icedrive, encrypted)
+## Off-site backups (Backblaze B2, encrypted)
 
 The nightly Graphiti dumps live on the same disk as the data, so on their own
 they do NOT survive an HD crash. `scripts/backup-offsite.sh` (chained after the
 dump in `monitor all-backup`) encrypts the latest dump locally with openssl
-AES-256 and pushes the ciphertext to Icedrive over WebDAV via rclone. WebDAV
-cannot reach Icedrive's encrypted vault, so local encryption is what protects
-the client data at rest on their servers.
+AES-256 and pushes the ciphertext to Backblaze B2 via rclone. Local encryption
+means the client data is opaque at rest on the provider's servers.
+
+**History:** Icedrive was the original target, abandoned 2026-08-02 — Icedrive
+DISCONTINUED WebDAV (disabled for new users 2026-04-15, sunset for existing),
+and it has no public API, so no headless path remains. B2 uses a native rclone
+backend over plain HTTPS — reliable, ~cents/month for this data volume.
 
 **To enable (one-time):**
-1. Icedrive dashboard → enable WebDAV (paid plan only). Note the WebDAV URL,
-   username, and generated app password.
-2. `~/.local/bin/rclone config` → new remote named `icedrive`, type `webdav`,
-   url = the Icedrive WebDAV URL, vendor `other`, user + pass from step 1.
-   Test: `rclone lsd icedrive:`.
-3. `~/.config/graphiti-offsite.env`:
-   `RCLONE_REMOTE="icedrive:proxiblue-backups/graphiti"` and
-   `OFFSITE_RETENTION=14`.
+1. Backblaze → B2 Cloud Storage → create a PRIVATE bucket (e.g.
+   `proxiblue-backups`). App Keys → Add a New Application Key scoped to that
+   bucket → note the **keyID** and **applicationKey** (applicationKey shows once).
+2. `~/.local/bin/rclone config create b2 b2 account=<keyID> key=<applicationKey>`
+   Test: `rclone lsd b2:` then `rclone mkdir b2:proxiblue-backups/graphiti`.
+3. `~/.config/graphiti-offsite.env` (template: `host/graphiti-offsite.env.example`):
+   `RCLONE_REMOTE="b2:proxiblue-backups/graphiti"` and `OFFSITE_RETENTION=14`.
 4. **CRITICAL:** copy `~/.config/graphiti-offsite-passphrase` into the password
    manager NOW. If the only copy is on the disk that crashes, every off-site
    backup is permanently undecryptable. This passphrase is the single point of
    failure for the whole off-site strategy.
 5. Test: `monitor graphiti-offsite` → should encrypt + push one dump.
 
-**Restore from off-site:** `rclone copy icedrive:proxiblue-backups/graphiti/<file>.dump.enc .`
+**Restore from off-site:** `rclone copy b2:proxiblue-backups/graphiti/<file>.dump.enc .`
 then `openssl enc -d -aes-256-cbc -pbkdf2 -in <file>.dump.enc -out neo4j.dump -pass file:<passphrase>`
 then follow "Graphiti restore" below.
 
