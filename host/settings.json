@@ -1,10 +1,8 @@
 {
-  "env": {
-    "DISABLE_AUTOUPDATER": "1"
-  },
   "permissions": {
     "defaultMode": "auto"
   },
+  "model": "claude-fable-5",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
@@ -142,6 +140,5 @@
     }
   },
   "tui": "default",
-  "skipAutoPermissionPrompt": true,
-  "model": "claude-fable-5[1m]"
+  "skipAutoPermissionPrompt": true
 }
