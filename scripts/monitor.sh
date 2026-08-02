@@ -86,6 +86,7 @@ dashboard      $DIR/telemetry_dashboard.py               ''               2     
 harness        $DIR/harness-release-watch.sh             ''               2        daily
 pin            $DIR/pin-age-check.sh                      ''               2        daily
 graphiti-backup $GRAPHITI_BACKUP                         ''               2        daily
+graphiti-offsite $DIR/backup-offsite.sh                  ''               2        daily
 "
 
 job_field() { echo "$JOBS" | awk -v n="$1" -v f="$2" '$1==n{print $f}'; }
@@ -160,6 +161,7 @@ case "${1:-}" in
   alerts) tail -n "${2:-20}" "$ALERT_LOG" 2>/dev/null | tac ;;
   test-alert) notify_alert "${2:-normal}" "monitor test alert" "desktop + email + logged; findable in 'monitor alerts' and on the dashboard" ; echo "sent" ;;
   all-daily)  for j in harness pin dashboard; do echo "-- $j"; run_job "$j"; done; health_notify >/dev/null ;;
+  all-backup) run_job graphiti-backup && run_job graphiti-offsite ;;
   all-weekly) for j in drift usage; do echo "-- $j"; run_job "$j"; done ;;
   "" ) echo "usage: monitor <job|all-daily|all-weekly|health|list>"; exit 2 ;;
   *) run_job "$1" ;;

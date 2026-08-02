@@ -26,9 +26,11 @@ the tooling, ADD IT to that script's REPOS list.
 
 ## NOT in git — needs manual recreation or separate backup
 
-- **Graphiti Neo4j data** — the knowledge graph DB. Backup scripts written but
-  NOT deployed (see memory `project_pb_graphiti_backup_todo`). Until fixed: crash
-  = graph loss; re-ingest via pb-graphiti ingestion skills (tickets/email/sessions).
+- **Graphiti Neo4j data** — the knowledge graph DB. **Backup DEPLOYED + restore
+  TESTED 2026-08-02.** Nightly dump (`monitor all-backup`, 02:30) →
+  `~/backups/graphiti/graphiti-<date>.dump` (~308M). Off-site copy is encrypted
+  and pushed to Icedrive — see "Off-site backups" + "Graphiti restore" below.
+  On total loss with no dump, re-ingest via pb-graphiti ingestion skills.
 - **Bugsink data** — docker volume `bugsink_data`. Low value (dev errors); acceptable loss.
 - **Chatroom SQLite** — thread history; acceptable loss.
 - **Secrets:** `~/.bugsink-secret`, `~/.pb-hcf/bugsink.env` (Bugsink API token + DSN
@@ -61,6 +63,55 @@ the tooling, ADD IT to that script's REPOS list.
    `composer require --dev inchoo/magento-bricklayer` where wired (check `.claude/wires.json`).
 8. Verify: session in pps → SessionStart shows graphiti recall + chatroom inbox;
    `git commit` fires captainhook; `/hcf:plan-create` blocked until `/model fable` (fable-reminder).
+
+## Off-site backups (Icedrive, encrypted)
+
+The nightly Graphiti dumps live on the same disk as the data, so on their own
+they do NOT survive an HD crash. `scripts/backup-offsite.sh` (chained after the
+dump in `monitor all-backup`) encrypts the latest dump locally with openssl
+AES-256 and pushes the ciphertext to Icedrive over WebDAV via rclone. WebDAV
+cannot reach Icedrive's encrypted vault, so local encryption is what protects
+the client data at rest on their servers.
+
+**To enable (one-time):**
+1. Icedrive dashboard → enable WebDAV (paid plan only). Note the WebDAV URL,
+   username, and generated app password.
+2. `~/.local/bin/rclone config` → new remote named `icedrive`, type `webdav`,
+   url = the Icedrive WebDAV URL, vendor `other`, user + pass from step 1.
+   Test: `rclone lsd icedrive:`.
+3. `~/.config/graphiti-offsite.env`:
+   `RCLONE_REMOTE="icedrive:proxiblue-backups/graphiti"` and
+   `OFFSITE_RETENTION=14`.
+4. **CRITICAL:** copy `~/.config/graphiti-offsite-passphrase` into the password
+   manager NOW. If the only copy is on the disk that crashes, every off-site
+   backup is permanently undecryptable. This passphrase is the single point of
+   failure for the whole off-site strategy.
+5. Test: `monitor graphiti-offsite` → should encrypt + push one dump.
+
+**Restore from off-site:** `rclone copy icedrive:proxiblue-backups/graphiti/<file>.dump.enc .`
+then `openssl enc -d -aes-256-cbc -pbkdf2 -in <file>.dump.enc -out neo4j.dump -pass file:<passphrase>`
+then follow "Graphiti restore" below.
+
+## Graphiti restore (TESTED 2026-08-02)
+
+Restore a dump into Neo4j. **Gotcha that cost real time in testing:** the
+directory holding the dump must be world-traversable (`chmod 755`) or the
+container's neo4j user gets `AccessDeniedException: /dumps`.
+
+```bash
+DUMP=~/backups/graphiti/graphiti-<date>.dump      # or decrypted off-site .dump
+IMG=$(docker inspect graphiti-neo4j --format '{{.Config.Image}}')  # neo4j:5.26.0
+WORK=$(mktemp -d); cp "$DUMP" "$WORK/neo4j.dump"; chmod 755 "$WORK"; chmod 644 "$WORK/neo4j.dump"
+docker stop graphiti-neo4j                          # offline load; skip if restoring to a NEW volume
+docker run --rm -v "$WORK:/dumps:ro" -v graphiti-fleet_neo4j_data:/data "$IMG" \
+  neo4j-admin database load neo4j --from-path=/dumps --overwrite-destination=true
+docker start graphiti-neo4j
+# verify: MATCH (n) RETURN count(n)  — was ~9950 on 2026-08-02
+rm -rf "$WORK"
+```
+
+Verified end-to-end 2026-08-02: latest dump loaded into a throwaway volume,
+9953 nodes, real content present.
 
 ## Known-good state reference (2026-07-31)
 
