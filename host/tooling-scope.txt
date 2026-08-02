@@ -5,7 +5,8 @@
 # tooling) are not drift and must not generate noise.
 #
 # Add a project here when it starts needing the tooling; the operator adjusts
-# the rest as needed, when needed. As of 2026-08-02 only these three require it.
+# the rest as needed, when needed. As of 2026-08-02: pps, lcd, webhooks (M2) + ntotankM1 (M1, EOL — right-sized: no graphiti/M2 guide).
 pvcpipesupplies
 lcd-mageos
 webhooks
+ntotankM1
