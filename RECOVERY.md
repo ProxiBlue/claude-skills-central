@@ -3,7 +3,7 @@
 Purpose: restore the full Claude/AI dev tooling on a fresh machine after HD crash.
 Audience: Lucas or any AI session. Keep this file current — it lives in
 `ProxiBlue/claude-skills-central` (private), so the map survives with the territory.
-Last verified: 2026-07-31.
+Last verified: 2026-08-02.
 
 ## What is backed up where (all private, github.com/ProxiBlue)
 
@@ -29,7 +29,7 @@ the tooling, ADD IT to that script's REPOS list.
 - **Graphiti Neo4j data** — the knowledge graph DB. **Backup DEPLOYED + restore
   TESTED 2026-08-02.** Nightly dump (`monitor all-backup`, 02:30) →
   `~/backups/graphiti/graphiti-<date>.dump` (~308M). Off-site copy is encrypted
-  and pushed to Icedrive — see "Off-site backups" + "Graphiti restore" below.
+  and pushed to Backblaze B2 — see "Off-site backups" + "Graphiti restore" below.
   On total loss with no dump, re-ingest via pb-graphiti ingestion skills.
 - **Bugsink data** — docker volume `bugsink_data`. Low value (dev errors); acceptable loss.
 - **Chatroom SQLite** — thread history; acceptable loss.
@@ -64,7 +64,7 @@ the tooling, ADD IT to that script's REPOS list.
 8. Verify: session in pps → SessionStart shows graphiti recall + chatroom inbox;
    `git commit` fires captainhook; `/hcf:plan-create` blocked until `/model fable` (fable-reminder).
 
-## Off-site backups (Backblaze B2, encrypted)
+## Off-site backups (Backblaze B2, encrypted) — LIVE + VERIFIED 2026-08-02
 
 The nightly Graphiti dumps live on the same disk as the data, so on their own
 they do NOT survive an HD crash. `scripts/backup-offsite.sh` (chained after the
@@ -82,16 +82,16 @@ backend over plain HTTPS — reliable, ~cents/month for this data volume.
    `proxiblue-backups`). App Keys → Add a New Application Key scoped to that
    bucket → note the **keyID** and **applicationKey** (applicationKey shows once).
 2. `~/.local/bin/rclone config create b2 b2 account=<keyID> key=<applicationKey>`
-   Test: `rclone lsd b2:` then `rclone mkdir b2:proxiblue-backups/graphiti`.
+   Test: `rclone lsd b2:` then `rclone mkdir b2:dev-env/graphiti`.
 3. `~/.config/graphiti-offsite.env` (template: `host/graphiti-offsite.env.example`):
-   `RCLONE_REMOTE="b2:proxiblue-backups/graphiti"` and `OFFSITE_RETENTION=14`.
+   `RCLONE_REMOTE="b2:dev-env/graphiti"` and `OFFSITE_RETENTION=14`.
 4. **CRITICAL:** copy `~/.config/graphiti-offsite-passphrase` into the password
    manager NOW. If the only copy is on the disk that crashes, every off-site
    backup is permanently undecryptable. This passphrase is the single point of
    failure for the whole off-site strategy.
 5. Test: `monitor graphiti-offsite` → should encrypt + push one dump.
 
-**Restore from off-site:** `rclone copy b2:proxiblue-backups/graphiti/<file>.dump.enc .`
+**Restore from off-site:** `rclone copy b2:dev-env/graphiti/<file>.dump.enc .`
 then `openssl enc -d -aes-256-cbc -pbkdf2 -in <file>.dump.enc -out neo4j.dump -pass file:<passphrase>`
 then follow "Graphiti restore" below.
 
