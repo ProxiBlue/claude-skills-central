@@ -1,7 +1,7 @@
 # AP-1 Plan — Runtime performance profiling in the plan/build loop
 
 **Supersedes** `~/claude-plugins-central/hcf-xhgui-plan.md` (May 2026, blocked on
-retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phase 0 DONE; building.
+retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phase 0 + Phase 1' DONE (live-fired); Phase 2 next.
 
 ## ⚡ Phase 0 findings (2026-08-02) — the design simplified
 
@@ -36,7 +36,7 @@ consistent with the minimize-burden principle.
 ### Revised phases
 - ~~Phase 0 probe~~ **DONE.**
 - ~~Phase 1 MCP read tools~~ **DELETED** — SQL via existing DB MCP replaces it.
-- **Phase 1' — playbook + view** (~half day): write `.claude/xhgui.md` with the
+- **Phase 1' — playbook** ✅ DONE + LIVE-FIRED 2026-08-02: agent given the playbook autonomously queried xhgui.results (homepage 3551ms vs login 320ms) AND parsed the profile JSON to name the hotspot (ObjectManager Developer::create, 50% of page) with a cache-state caveat. Playbook at seed/marketplaces/hcf-xhgui/templates/xhgui.md. Was: write `.claude/xhgui.md` with the
   query patterns + the optional top-functions SQL view. Live-fire: ask the agent
   "how slow is the homepage and what's the top function" → it queries and answers.
 - **Phase 2 — HCF pre-plan wiring** (~half day): wire the playbook so plans pull
