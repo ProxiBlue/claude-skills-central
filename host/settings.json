@@ -69,6 +69,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/perf-gate.sh",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [

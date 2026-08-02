@@ -1,7 +1,12 @@
 # AP-1 Plan — Runtime performance profiling in the plan/build loop
 
 **Supersedes** `~/claude-plugins-central/hcf-xhgui-plan.md` (May 2026, blocked on
-retired pb-gitnexus). **Date:** 2026-08-02. **Status:** Phases 0, 1', 2 DONE. Phase 2 (pps): playbook wired via .claude/CLAUDE.md pointer; in-container agent discovers+reads it unprompted (host-side didn't — .claude/CLAUDE.md only loads in-container). Query-in-plan is prompt-dependent (Phase 1' queried+cited numbers when engaged). Phases 3-4 (regression + gate) = decide later.
+retired pb-gitnexus). **Date:** 2026-08-02. **Status: ALL PHASES DONE (0, 1', 2, 3, 4) — 2026-08-03.**
+
+- Phase 2 (pps): playbook wired via .claude/CLAUDE.md pointer; in-container agent discovers+reads it unprompted (host-side didn't — .claude/CLAUDE.md only loads in-container). Query-in-plan is prompt-dependent (Phase 1' queried+cited numbers when engaged).
+- **Phase 3 — regression compare ✅** — `scripts/perf-compare.sh` (in `claude-skills-central/scripts/`): save-baseline/check/gate on **wall time** (`main_wt`). Discovered live that `main_ct` is meaningless (always 1 = `main()`'s own count), so the gate is wall-only; query-count stays a reviewer judgement via profile-JSON parse (playbook Query 3). 12 unit tests (stub-mysql, no live DB). Live-fired on pps: baseline 291.5ms → cold-cache after 1738ms → correctly flagged REGRESSION. Exposed the **cache-state caveat** (warm both captures) — now documented in the playbook + gate message.
+- **Phase 4 — perf-gate ✅** — `hooks/perf-gate.sh`, PreToolUse on `git commit`, mirrors test-gate. STRICTLY opt-in (`.claude/perf-gate.json` `{enabled:true}` + a saved baseline; no auto-detect → zero fleet noise). FAILS OPEN on missing after-data (blocks only on a measured regression). Kill switch `CLAUDE_PERF_GATE_ALLOWED=1`, warn mode `CLAUDE_PERF_GATE_MODE=warn`. 10 hook tests. Wired into **host** settings.json (inert without config).
+- **Deferred (ops, not build):** wiring the gate into **container/fleet** settings + arming it on pps (`.claude/perf-gate.json` + committed baseline) waits on the pps go-live freeze lifting + the LIVE-branch rule for container config. Also still pending from Phase 2: committing pps `xhprof_mode:xhgui` + `.claude/xhgui.md` (same freeze).
 
 ## ⚡ Phase 0 findings (2026-08-02) — the design simplified
 
