@@ -9,6 +9,13 @@ real data, and real users. Every action point below closes a slice of that gap.
 Ranked by leverage. Work top-down. Each is a capability the agent is *given*, so
 plan/build quality improves — not more process.
 
+**STATUS 2026-08-03: ROADMAP COMPLETE.** AP-1 ✅ (perf-compare + perf-gate,
+armed on pps) · AP-2 ✅ (DO bugsink droplet + dev feed + issue-sentinel
+enrolled; prod DSN rides next deploy train) · AP-3 ✅ (prod-shape captured from
+hypernode) · AP-4 ✅ (golden-path baselines seeded from loki + visual.md
+discipline) · AP-5 ✅ (dep-audit daily watch + semgrep in the quorum) ·
+AP-6 ✕ closed won't-build (see entry).
+
 **Safety rule for all of these:** anything that grants production access gets the
 same deterministic-guard treatment as everything else — a hook that HARD-BLOCKS
 writes, not a prompt that says "read only." Read-only-in-prose is not read-only.
@@ -100,13 +107,20 @@ the human-style security quorum with automated intel.
 
 ## AP-6 — First-class read-only production access
 
-**Gap:** SSH-read to live is allowed but *manual*; the agent can't investigate
-production autonomously during planning.
+**CLOSED 2026-08-03 — WON'T BUILD.** Every production need surfaced while
+delivering AP-1..5 was solved *without* giving agents prod access, and Lucas
+hardened that stance into a principle ("I don't want agents accessing live
+directly"):
 
-**Give it:** a read-only production-replica query tool + log tail as agent tools,
-behind a hard write-blocking guard (per the safety rule above).
+- prod errors → prod *pushes* to the DO bugsink droplet; agents query the sink
+- data scale → operator one-liner captures shape JSON; agents read the file
+- prod logs → dormant SSH log-puller exists as fallback, operator-configured
 
-**Effort:** medium (needs the guard done right). **Status:** TODO.
+A hard-guarded agent SSH channel would add attack surface + guard maintenance
+for a need that no longer exists. Pattern for any future prod data want:
+**push it out to a sink or have the operator capture it — never point an agent
+at live.** Reopen only if a need appears that structurally cannot be met that
+way.
 
 ---
 
