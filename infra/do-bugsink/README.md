@@ -1,5 +1,13 @@
 # Bugsink on DigitalOcean — dedicated error-tracker droplet (AP-2)
 
+> **STATUS: LIVE since 2026-08-03.** Droplet `134.199.172.217` (SYD1, 1GB),
+> `https://errors.proxiblue.com.au` (caddy auto-TLS). Projects `pps` (id 1) +
+> `pps-prod` (id 2), agent token active, `~/.pb-hcf/bugsink.env` repointed.
+> Workstation bugsink retired (volume `bugsink_bugsink_data` retained).
+> Note: cloud-init user-data was NOT applied at create; setup was executed
+> over SSH instead — the user-data.yaml here remains the rebuild recipe.
+> Pending: `justbetter/magento2-sentry` on pps live (next deploy train).
+
 One always-on sink for runtime errors. Production sites push to it (Sentry SDK,
 outbound only), ddev projects push dev errors to it, agents query its REST API.
 No agent ever touches a production server.
