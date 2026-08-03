@@ -45,8 +45,8 @@ host agents ─query▶  (caddy TLS + bugsink)  ◀─query── container agen
 
 ## Ops notes
 
-- SQLite in the `bugsink_data` docker volume — include in any droplet backup
-  regime (snapshot or rsync of `/var/lib/docker/volumes/bugsink_bugsink_data`)
+- SQLite in the `bugsink_data` docker volume — **backups DONE 2026-08-03:**
+  operator enabled droplet backups in the DO panel (covers the volume)
 - OS security patches: unattended-upgrades enabled by cloud-init
 - Secrets: `.bugsink-secret` (Django SECRET_KEY) + `.admin-password` live here
   gitignored, mode 600 — copy to password manager
