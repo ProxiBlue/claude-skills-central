@@ -1,0 +1,56 @@
+#cloud-config
+# Bugsink error-tracker droplet — fully self-configuring (AP-2, 2026-08-03).
+# Paste as User Data when creating the droplet. On first boot it installs
+# docker, boots bugsink behind caddy (auto-TLS), and enables unattended
+# security upgrades. Nothing to run by hand on the server.
+#
+# Droplet: Basic 1vCPU/1GB, Ubuntu 24.04 LTS. DNS: errors.proxiblue.com.au -> droplet IP.
+
+package_update: true
+packages:
+  - unattended-upgrades
+
+write_files:
+  - path: /opt/bugsink/docker-compose.yml
+    content: |
+      services:
+        bugsink:
+          image: bugsink/bugsink:latest
+          restart: always
+          environment:
+            SECRET_KEY: "da132355f3201976a667fc035f0560fc53707e571b369b4608f2c640ad3e7f1d"
+            CREATE_SUPERUSER: "lucas@proxiblue.com.au:ZKmb71lAH41w4iei"
+            PORT: "8000"
+            BASE_URL: "https://errors.proxiblue.com.au"
+            BEHIND_HTTPS_PROXY: "true"
+          volumes:
+            - bugsink_data:/data
+          expose:
+            - "8000"
+        caddy:
+          image: caddy:2
+          restart: always
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - /opt/bugsink/Caddyfile:/etc/caddy/Caddyfile:ro
+            - caddy_data:/data
+            - caddy_config:/config
+      volumes:
+        bugsink_data:
+        caddy_data:
+        caddy_config:
+  - path: /opt/bugsink/Caddyfile
+    content: |
+      errors.proxiblue.com.au {
+          reverse_proxy bugsink:8000
+      }
+
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - cd /opt/bugsink && docker compose up -d

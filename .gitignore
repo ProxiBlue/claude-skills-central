@@ -2,3 +2,5 @@
 *~
 .mcp.json.bak*
 # (removed dead dir entry)
+infra/do-bugsink/.bugsink-secret
+infra/do-bugsink/.admin-password
