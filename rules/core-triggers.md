@@ -10,4 +10,4 @@ Full rules live in `claude-skills-central/rules/reference/` (host: `~/claude-ski
 | Plan orchestration (Magento) | Read `hcf-plan-orchestrate.md` first. `/pb-hcf:wire` before `/hcf:plan-orchestrate`; legacy pipeline.md = stop. |
 | Posting ticket comment | Hook forces `gh-comment-hidden.sh`. ≤5 lines, caveman, status prefix. Reference: `gh-ticket-comments.md`. |
 
-Per-project rule opt-out: `<repo>/.claude/rules-disable`, one hook name per line (`gh-comment-guard`, `php-debug-guard`, `test-failure-context`). Prose rules vary per project via that project's root CLAUDE.md include list.
+Per-project rule opt-out: `<repo>/.claude/rules-disable`, one hook name per line (`gh-comment-guard`, `php-debug-guard`, `test-failure-context`, `git-tree-guard`). Prose rules vary per project via that project's root CLAUDE.md include list.

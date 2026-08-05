@@ -36,6 +36,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/git-tree-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash /home/lucas/claude-skills-central/hooks/gh-comment-guard.sh"
           }
         ]
