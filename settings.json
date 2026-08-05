@@ -262,6 +262,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/git-tree-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash /var/www/html/.claude/hooks/gh-comment-guard.sh"
           }
         ]
@@ -354,7 +363,7 @@
   "autoMode": {
     "allow": [
       "$defaults",
-      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
+      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' \u2014 the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
     ]
   },
   "mcpServers": {
