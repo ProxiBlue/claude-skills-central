@@ -16,6 +16,16 @@
 set -u
 DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 
+# PATH repair for cron. Cron runs with a minimal PATH (/usr/local/bin:/usr/bin:/bin)
+# that omits nvm's node/npm bin and ~/.local/bin (claude). Without this, `npm view`
+# failed EVERY run under cron — command-not-found, not a network blip — so the retry
+# loop below was useless (all attempts fail identically). See 2026-08-06 alert streak.
+if ! command -v npm >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+  set +u; . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1; set -u
+fi
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH" ;; esac
+export PATH
+
 STATEDIR="$HOME/monitor/harness-watch"; mkdir -p "$STATEDIR"
 LAST_FILE="$STATEDIR/last-seen"
 CHATROOM_URL="${PB_CHATROOM_REST_URL:-http://127.0.0.1:7476}"
@@ -23,7 +33,9 @@ CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 
 FAIL_FILE="$STATEDIR/npm-fail-count"
 
-# Query upstream with retries. A single npm/registry/DNS blip is transient noise,
+# Query upstream with retries (guards genuine registry/DNS blips; the cron PATH
+# problem that caused the 2026-08-06 streak is handled by the PATH repair above).
+# A single npm/registry/DNS blip is transient noise,
 # not an actionable event — so a one-off miss must NOT page you (an rc!=0 here
 # fires monitor's "harness failed" email with a cryptic body). Only a PERSISTENT
 # failure — the check genuinely not working for days — is worth surfacing.
