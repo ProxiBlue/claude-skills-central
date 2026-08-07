@@ -7,7 +7,9 @@ host + AI tooling + knowledge-graph data; **Phase 6 rebuilds the client dev
 environments themselves — that is the end goal.** Follow the phases in order.
 **Audience:** Lucas, or any AI session driving the rebuild.
 **This file lives in `ProxiBlue/claude-skills-central` (private GitHub)** — so the
-map survives with the territory. **Last verified: 2026-08-02.**
+map survives with the territory. **Last verified: 2026-08-02. Reconciled against
+live state 2026-08-07** (pb-hcf agent-enrollment architecture, wires.json
+recovery behaviour, in-scope project list — see notes marked 2026-08-07 below).
 
 > The one thing this spec CANNOT recover for you: the AES passphrase that
 > decrypts the off-site Graphiti backups (`~/.config/graphiti-offsite-passphrase`).
@@ -78,6 +80,44 @@ Then recreate the skills symlink:
 
 Each ddev **project** is its own git repo with its own remote (uptactics/*,
 ittools/*, proxiblue/*) — clone them to `~/workspace/...` as needed.
+
+**Not every plugin under `seed/marketplaces/` is a separate clone (2026-08-07).**
+`pb-hcf`, `pb-graphiti`, `pb-chatroom`, `pb-codegraph`, and `proxiblue-skills/skills`
+have their own `.git` + remote (listed in the table above) — clone each
+independently. `hcf`, `hcf-xhgui`, `hyva-ai-tools`, and `pb-hcf-playwright-tdd`
+have **no independent `.git`** — they're plain files tracked as part of
+`claude-plugins-central`'s own history, so cloning `claude-plugins-central`
+recovers them automatically, but ONLY as of whatever was last committed+pushed
+there. Before relying on this doc, `cd ~/claude-plugins-central && git status
+--short` — if any of those 4 dirs show dirty, commit+push first or the working
+copy is what's actually at risk, not what git thinks is safe. (`hcf` also
+exists as a real independent clone at `~/claude-plugins-central/hcf`
+— `github.com/markshust/hcf`, upstream, read-only — the `seed/marketplaces/hcf`
+copy is a manually-synced mirror of it, not the source of truth.)
+
+**pb-hcf's agent-enrollment architecture, and why 2 places matter (2026-08-07).**
+Bundled agents in `pb-hcf/agents/*.md` ship **dormant** — no `phase` key, by
+design (mirrors how HCF ships `standards-enforcer` commented out). HCF's own
+hook-discovery never globs a *different* plugin's `agents/` dir directly — it
+only globs `.claude/agents/*.md` in the current project (which for fleet
+Magento projects resolves via a `:ro` docker-compose bind-mount to
+`~/claude-code-magento-agents`) plus whichever plugin's *own* skill is
+currently running. So a pb-hcf agent is invisible to HCF until it's physically
+copied into `~/claude-code-magento-agents` **with** `phase`/`order`/`mode`
+stamped in — that's what `/pb-hcf:wire --enable=<name>` does. Recovering
+`pb-hcf`'s repo alone does NOT re-enroll anything; recovering
+`claude-code-magento-agents`'s repo restores whatever was enrolled as of its
+last push (it's a normal git repo, Phase 2 table already covers it) — anything
+committed-but-not-pushed there is lost same as any other uncommitted work.
+**Live flag, will go stale:** as of 2026-08-07, `claude-code-magento-agents`
+has 1 local commit (`1807a70`, enrolling `post-plan-playwright-bucket-split` +
+`pre-batch-playwright-floor-guard`) not yet pushed — push it before treating
+that enrollment as recovered.
+
+**`.claude/wires.json` is gitignored per-project, every project — it is NOT
+backed up and should not be.** It's `/pb-hcf:wire`'s own state cache; after any
+rebuild, re-run `/pb-hcf:wire --enable=<name>[,<name>]` (or `--enable-all`) per
+project to regenerate it rather than trying to restore a copy.
 
 ---
 
@@ -204,8 +244,15 @@ ddev exec composer require --dev inchoo/magento-bricklayer   # where wired (.cla
 ```
 
 In-scope projects that need the AI tooling: **pvcpipesupplies, lcd-mageos,
-webhooks** (see `host/tooling-scope.txt`). Others are out of scope for the guards
-but still recover their dev environment via the same sequence.
+webhooks, ntotankM1** (see `host/tooling-scope.txt` — authoritative; this line
+drifted out of sync with it before 2026-08-07, corrected here). Others are out
+of scope for the guards but still recover their dev environment via the same
+sequence. Note: several more projects (`ntotank`, `pvcpipesupplies-loki`,
+`ai_assistant`, `billing`, `PdfToVec`, `ddev_project_template`, `ahhgg`,
+`ihop`, `tracker`) carry the `docker-compose.ai.mounts.yaml` RO-mount
+infrastructure without being in `tooling-scope.txt` — per that file's own
+comment, that's expected (mount present ≠ in scope for drift/guard telemetry),
+not something to "fix" by adding them all.
 
 **Bottom line for client envs:** git gives you the code, the live server gives you
 the data, and one build sequence regenerates everything else. The only thing you
