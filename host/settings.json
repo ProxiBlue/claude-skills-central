@@ -59,6 +59,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/playwright-trace-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -116,6 +125,16 @@
             "type": "command",
             "command": "bash /home/lucas/claude-skills-central/hooks/test-evidence.sh",
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/playwright-trace-mark.sh",
+            "timeout": 10
           }
         ]
       }
