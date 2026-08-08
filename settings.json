@@ -285,6 +285,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/playwright-trace-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -333,6 +342,16 @@
             "type": "command",
             "command": "bash /var/www/html/.claude/hooks/test-evidence.sh",
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/playwright-trace-mark.sh",
+            "timeout": 10
           }
         ]
       },
