@@ -95,6 +95,15 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/webfetch-completeness-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
