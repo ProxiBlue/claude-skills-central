@@ -312,6 +312,15 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/webfetch-completeness-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
