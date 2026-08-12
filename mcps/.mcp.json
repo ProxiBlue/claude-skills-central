@@ -117,6 +117,10 @@
     "bricklayer": {
       "command": "/var/www/html/.claude/scripts/bricklayer-mcp.sh",
       "description": "Inchoo/magento-bricklayer runtime introspection for Magento 2 (DI resolution, plugin chains, EAV attributes, event observers, error triage, code generation). 83 tools; 17 essentials visible at startup, remainder discoverable via search-tools. Composer-installed per project (`composer require --dev inchoo/magento-bricklayer` + `vendor/bin/bricklayer install --env=ddev --agents=claude-code`). This entry launches the MCP via a fleet-mounted gated wrapper \u2014 silently exits on containers where vendor/bin/bricklayer is not installed (non-Magento projects: ai_assistant, tradingBOT, ihop, ntotankM1). Complements pb-codegraph (static graph) and graphiti (temporal domain knowledge) \u2014 bricklayer answers 'what is resolved at runtime with all installed extensions loaded'. See ~/claude-skills-central/scripts/bricklayer-mcp.sh for the gate logic."
+    },
+    "magento-standards": {
+      "command": "/var/www/html/.claude/scripts/magento-standards-mcp.sh",
+      "description": "Midhun-edv/magento-coding-standard-mcp \u2014 Magento 2 coding-standards rule engine (83+ rules, 150+ discouraged-function replacements, 50+ restricted-class migrations, 25+ jQuery deprecations, theme presets for Hyv\u00e4/Luma/Breeze/Porto). Tools: get_magento_pattern, validate_code, check_security, explain_rule, list_rules, get_rules_summary, manage_theme. Domain-generic (not tied to a project's installed code) \u2014 vendored once centrally under scripts/vendor/, no per-project install or gate needed. Consult before/while writing Magento PHP or theme code, and to validate a diff against Magento conventions (prefer over recalling rules from memory \u2014 this is authoritative and current). Complements hcf:standards-enforcer (which fixes/re-formats already-written code); this answers 'what's the compliant way to do X' up front. Vendored 2026-08-12, see ~/claude-skills-central/scripts/magento-standards-mcp.sh for update notes."
     }
   }
 }
