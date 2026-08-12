@@ -67,21 +67,37 @@ run_sql() {  # $1 = SQL; prints tab-separated rows, no header
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 
 # --- helpers -----------------------------------------------------------------
-# Average wall_ms for URLs matching a substring, only traces with request_ts >
-# a watermark. Emits: simple_url \t wall_ms \t n \t max_ts
+# Trimmed-mean wall_ms for URLs matching a substring, only traces with
+# request_ts > a watermark. Emits: simple_url \t wall_ms \t n \t max_ts
+#
+# NOT a plain AVG(main_wt) — a single cold-cache trace (first request after a
+# deploy/cache-flush, or an idle-container next-day request) can be 10-40x a
+# warm request and drag a small-n average into a false regression (found via
+# pvcpipesupplies chatroom thread cc039490-2026-08-10: 3 of 35 post-baseline
+# '/' traces were cold-cache spikes — 8.6% of samples, 80% of summed wall-time
+# — reporting 319ms vs a real 69ms). Trim top+bottom decile by NTILE(10) over
+# main_wt per URL before averaging; falls back to plain AVG when n<10 (too few
+# samples for decile trimming to mean anything). n in the output is the FULL
+# sample count, not the trimmed count — trimming only affects wall_ms.
 agg_for() {  # $1 = url substring, $2 = min_ts (0 for all)
   local like ts
   like=$(sql_escape "$1"); ts="${2:-0}"
   run_sql "SELECT simple_url,
-                  ROUND(AVG(main_wt)/1000,1),
-                  COUNT(*),
-                  MAX(request_ts)
-           FROM results
-           WHERE simple_url LIKE '%${like}%'
-             AND simple_url LIKE '/%'
-             AND request_ts > ${ts}
-           GROUP BY simple_url
-           ORDER BY AVG(main_wt) DESC"
+                  ROUND(AVG(CASE WHEN bucket NOT IN (1,10) OR cnt < 10 THEN main_wt END)/1000,1),
+                  cnt,
+                  full_max_ts
+           FROM (
+             SELECT simple_url, main_wt,
+                    NTILE(10) OVER (PARTITION BY simple_url ORDER BY main_wt) AS bucket,
+                    COUNT(*) OVER (PARTITION BY simple_url) AS cnt,
+                    MAX(request_ts) OVER (PARTITION BY simple_url) AS full_max_ts
+             FROM results
+             WHERE simple_url LIKE '%${like}%'
+               AND simple_url LIKE '/%'
+               AND request_ts > ${ts}
+           ) t
+           GROUP BY simple_url, cnt, full_max_ts
+           ORDER BY AVG(CASE WHEN bucket NOT IN (1,10) OR cnt < 10 THEN main_wt END) DESC"
 }
 
 pct_delta() {  # $1 = before, $2 = after -> integer percent (rounded), 0 if before<=0
