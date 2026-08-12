@@ -4,3 +4,8 @@
 # (removed dead dir entry)
 infra/do-bugsink/.bugsink-secret
 infra/do-bugsink/.admin-password
+
+# Vendored MCP servers cloned+built locally (own .git, node_modules) — not
+# fleet-repo content, regenerate per the header comment in the launcher
+# script that references each (e.g. scripts/magento-standards-mcp.sh).
+scripts/vendor/
