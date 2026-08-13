@@ -146,6 +146,26 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/invisible-unicode-scrub.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/invisible-unicode-read-check.sh",
+            "timeout": 15
+          }
+        ]
       }
     ]
   },

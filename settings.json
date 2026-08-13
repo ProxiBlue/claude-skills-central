@@ -372,6 +372,26 @@
             "command": "bash /var/www/html/.claude/hooks/tsc-edit-check.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/invisible-unicode-scrub.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/invisible-unicode-read-check.sh",
+            "timeout": 15
+          }
+        ]
       }
     ]
   },
