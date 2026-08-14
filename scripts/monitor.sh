@@ -80,7 +80,7 @@ notify_alert() {  # <urgency> <title> <body>
 # name          command                                  args             maxdays  freq
 JOBS="
 drift          $DIR/fleet-drift-check.sh                 ''               8        weekly
-usage          $DIR/usage_telemetry.py                   --post           8        weekly
+usage          $DIR/usage_telemetry.py                   ''               8        weekly
 evals          $DIR/rule-evals.sh                        --notify         32       monthly
 dashboard      $DIR/telemetry_dashboard.py               ''               2        daily
 harness        $DIR/harness-release-watch.sh             ''               2        daily
