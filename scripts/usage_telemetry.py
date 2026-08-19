@@ -49,6 +49,34 @@ BANNED = ["must be a flake", "not my code", "not caused by my changes",
 FIRE_RE = {g: re.compile(r"BLOCKED by " + re.escape(g)) for g in GUARDS}
 INJECT_RE = re.compile(r"investigation protocol now in force")
 
+# rector adoption signals — same tool-result-context detection as guard fires,
+# but sourced from scripts/rector-check.sh's own stdout lines (pb-hcf) rather
+# than a hook block. "fired" = transforms proposed (deterministic layer caught
+# something); "clean" = ran, nothing proposed; "degraded" = project not wired
+# for rector yet (binary or rector.php missing) — an adoption-gap signal, not
+# a usage one.
+RECTOR_RE = {
+    "rector_fired": re.compile(r"rector-check: rector proposes transforms"),
+    "rector_clean": re.compile(r"rector-check: no transforms proposed"),
+    "rector_degraded": re.compile(r"rector-check: rector not installed|no rector\.php found at repo root"),
+}
+
+# quality-skill adoption — did anyone actually invoke /simplify or /code-review
+# in a real session, as opposed to it just being on the available-skills list
+# (which every transcript carries via the skill_listing attachment and would
+# false-positive a naive string match). Two distinct real-invocation shapes:
+#   1. the Skill tool_use itself: {"type":"tool_use","name":"Skill",
+#      "input":{"skill":"simplify"}} inside an assistant message
+#   2. a typed slash command surfaced as <command-name>/simplify</command-name>
+#      in a user-turn line
+# Matched structurally (tool_use name/input, or the command-name tag), never
+# against raw prose, so "the simplify skill" mentioned in conversation doesn't
+# count.
+TRACKED_SKILLS = ["simplify", "code-review"]
+SKILL_TOOLUSE_RE = {s: re.compile(r'"name"\s*:\s*"Skill".{0,200}?"skill"\s*:\s*"' + re.escape(s) + r'"',
+                                   re.DOTALL) for s in TRACKED_SKILLS}
+SKILL_COMMAND_RE = {s: re.compile(r"<command-name>\s*/" + re.escape(s) + r"\b") for s in TRACKED_SKILLS}
+
 
 def default_roots() -> list[Path]:
     roots = [Path(os.path.expanduser("~/.claude/projects"))]
@@ -70,9 +98,7 @@ def walk(roots: list[Path]):
                 yield path
 
 
-def line_is_fire(obj: dict) -> str | None:
-    """Return guard name if this transcript line is an actual guard fire
-    (string sits in a tool-result / hook context), else None."""
+def _tool_result_blob(obj: dict) -> str | None:
     haystacks = []
     tur = obj.get("toolUseResult")
     if tur is not None:
@@ -82,10 +108,30 @@ def line_is_fire(obj: dict) -> str | None:
         haystacks.append(json.dumps(att))
     if not haystacks:
         return None
-    blob = "\n".join(haystacks)
+    return "\n".join(haystacks)
+
+
+def line_is_fire(obj: dict) -> str | None:
+    """Return guard name if this transcript line is an actual guard fire
+    (string sits in a tool-result / hook context), else None."""
+    blob = _tool_result_blob(obj)
+    if blob is None:
+        return None
     for g, rx in FIRE_RE.items():
         if rx.search(blob):
             return g
+    return None
+
+
+def line_rector_signal(obj: dict) -> str | None:
+    """Return the rector-check.sh outcome (rector_fired/rector_clean/
+    rector_degraded) if this transcript line carries one, else None."""
+    blob = _tool_result_blob(obj)
+    if blob is None:
+        return None
+    for name, rx in RECTOR_RE.items():
+        if rx.search(blob):
+            return name
     return None
 
 
@@ -98,6 +144,44 @@ def assistant_text(obj: dict) -> str:
         if isinstance(b, dict) and b.get("type") == "text":
             parts.append(b.get("text", ""))
     return "\n".join(parts)
+
+
+def modernization_roots() -> list[Path]:
+    """Project roots that may carry .claude/modernization-state.json — same
+    two-depth glob convention as default_roots(), not a recursive walk (a
+    recursive glob would descend into vendor/node_modules on every project)."""
+    home = Path(os.path.expanduser("~/workspace"))
+    found = set()
+    for pattern in ("*/.claude/modernization-state.json",
+                    "*/*/.claude/modernization-state.json"):
+        for p in home.glob(pattern):
+            found.add(p)
+    return sorted(found)
+
+
+def modernization_snapshot() -> tuple[dict, list[tuple[str, int, int, int]]]:
+    """Read every .claude/modernization-state.json under ~/workspace. Returns
+    (totals {done,pending,blocked}, per-project [(name, done, pending, blocked)]).
+    This is a SNAPSHOT of current repo state, not an incremental session-log
+    count like the guard/rector fire counters above — re-read in full every run."""
+    totals = {"done": 0, "pending": 0, "blocked": 0}
+    per_project = []
+    for path in modernization_roots():
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            continue
+        proj_name = path.parent.parent.name
+        counts = {"done": 0, "pending": 0, "blocked": 0}
+        for module, rungs in (data.get("modules") or {}).items():
+            for _ruleset, cell in (rungs or {}).items():
+                status = (cell or {}).get("status")
+                if status in counts:
+                    counts[status] += 1
+        for k in totals:
+            totals[k] += counts[k]
+        per_project.append((proj_name, counts["done"], counts["pending"], counts["blocked"]))
+    return totals, sorted(per_project)
 
 
 def main() -> int:
@@ -131,6 +215,9 @@ def main() -> int:
             roots.append(p)
 
     g_fire = {g: 0 for g in GUARDS}
+    r_signal = {r: 0 for r in RECTOR_RE}
+    r_defer = 0
+    skill_invoked = {s: 0 for s in TRACKED_SKILLS}
     ban = {b: 0 for b in BANNED}
     inject = 0
     files_scanned = 0
@@ -162,6 +249,26 @@ def main() -> int:
                             g_fire[g] += 1
                     except Exception:
                         pass
+                if "rector-check:" in line or "no rector.php found" in line:
+                    try:
+                        obj = json.loads(line)
+                        r = line_rector_signal(obj)
+                        if r:
+                            r_signal[r] += 1
+                    except Exception:
+                        pass
+                if '"name":"Skill"' in line or '"name": "Skill"' in line or "command-name" in line:
+                    for s in TRACKED_SKILLS:
+                        if SKILL_TOOLUSE_RE[s].search(line) or SKILL_COMMAND_RE[s].search(line):
+                            skill_invoked[s] += 1
+                if "STATUS: DEFER" in line:
+                    try:
+                        obj = json.loads(line)
+                        txt = assistant_text(obj)
+                        if "STATUS: DEFER" in txt and "rector" in txt.lower():
+                            r_defer += 1
+                    except Exception:
+                        pass
                 if "investigation protocol now in force" in line:
                     inject += 1
                 if any(b in line for b in BANNED):
@@ -180,6 +287,7 @@ def main() -> int:
 
     total_guards = sum(g_fire.values())
     total_banned = sum(ban.values())
+    modern_totals, modern_projects = modernization_snapshot()
 
     lines = []
     lines.append(f"USAGE TELEMETRY {stamp} — scanned {files_scanned} files, "
@@ -188,6 +296,25 @@ def main() -> int:
     lines.append(f"Guard fires (real sessions): total {total_guards}")
     for g in GUARDS:
         lines.append(f"  {g:<18} {g_fire[g]}")
+    lines.append("")
+    lines.append(f"Rector adoption (real sessions, pb-hcf rector-check.sh):")
+    lines.append(f"  fired (transforms proposed)   {r_signal['rector_fired']}")
+    lines.append(f"  clean (ran, nothing proposed)  {r_signal['rector_clean']}")
+    lines.append(f"  degraded (not wired in project) {r_signal['rector_degraded']}")
+    lines.append(f"  DEFER verdicts citing rector    {r_defer}")
+    lines.append("")
+    lines.append(f"Rector modernization-sweep matrix (current repo state, all projects):")
+    lines.append(f"  done {modern_totals['done']}  pending {modern_totals['pending']}  "
+                 f"blocked {modern_totals['blocked']}")
+    if modern_projects:
+        for name, done, pending, blocked in modern_projects:
+            lines.append(f"    {name:<24} done={done} pending={pending} blocked={blocked}")
+    else:
+        lines.append("    (no .claude/modernization-state.json found under ~/workspace)")
+    lines.append("")
+    lines.append(f"Quality-skill invocations (real sessions):")
+    for s in TRACKED_SKILLS:
+        lines.append(f"  /{s:<16} {skill_invoked[s]}")
     lines.append("")
     lines.append(f"Investigation-protocol injections: {inject}")
     lines.append("")
@@ -206,17 +333,42 @@ def main() -> int:
                  "the session that built this) counts too. Treat the number as a "
                  "trend line, not a verdict; open the source session to confirm "
                  "real blame-shift leakage before acting.")
+    lines.append("CAVEAT: 'DEFER verdicts citing rector' is a co-occurrence "
+                 "heuristic (STATUS: DEFER + 'rector' in the same verdict text) — "
+                 "the defer may be for an unrelated finding in the same pass. "
+                 "Open the source session to confirm attribution.")
     report = "\n".join(lines)
     print(report)
     report_path.write_text(report)
 
+    CSV_HEADER = ("stamp,merge,push,test_gate,gh_comment,php_debug,injections,banned,"
+                  "rector_fired,rector_clean,rector_degraded,rector_defer,"
+                  "modernization_done,modernization_pending,modernization_blocked,"
+                  "simplify_invoked,code_review_invoked\n")
+    NCOLS = 17
     if not csv_path.exists():
-        csv_path.write_text("stamp,merge,push,test_gate,gh_comment,php_debug,"
-                            "injections,banned\n")
+        csv_path.write_text(CSV_HEADER)
+    else:
+        # schema migration: old rows (8 or 15 cols) get the new columns defaulted
+        # to 0 so read_usage_rows()'s DictReader never KeyErrors on a historical row.
+        existing = csv_path.read_text().splitlines()
+        if existing and existing[0] != CSV_HEADER.strip():
+            migrated = [CSV_HEADER.strip()]
+            for row in existing[1:]:
+                cols = row.split(",")
+                if len(cols) < NCOLS:
+                    cols += ["0"] * (NCOLS - len(cols))
+                migrated.append(",".join(cols[:NCOLS]))
+            csv_path.write_text("\n".join(migrated) + "\n")
     with csv_path.open("a") as fh:
         fh.write(f"{stamp},{g_fire['merge-guard']},{g_fire['push-guard']},"
                  f"{g_fire['test-gate']},{g_fire['gh-comment-guard']},"
-                 f"{g_fire['php-debug-guard']},{inject},{total_banned}\n")
+                 f"{g_fire['php-debug-guard']},{inject},{total_banned},"
+                 f"{r_signal['rector_fired']},{r_signal['rector_clean']},"
+                 f"{r_signal['rector_degraded']},{r_defer},"
+                 f"{modern_totals['done']},{modern_totals['pending']},"
+                 f"{modern_totals['blocked']},"
+                 f"{skill_invoked['simplify']},{skill_invoked['code-review']}\n")
 
     if args.post and not args.dry_run:
         summary = (f"Usage telemetry {stamp}: guards fired {total_guards}x "
@@ -224,7 +376,13 @@ def main() -> int:
                    f"{g_fire['gh-comment-guard']}, php-debug "
                    f"{g_fire['php-debug-guard']}, merge {g_fire['merge-guard']}, "
                    f"push {g_fire['push-guard']}); injections {inject}; banned "
-                   f"phrases {total_banned}. Scanned {files_scanned} files.\n\n"
+                   f"phrases {total_banned}. Rector: fired {r_signal['rector_fired']}, "
+                   f"clean {r_signal['rector_clean']}, degraded "
+                   f"{r_signal['rector_degraded']}; modernization matrix "
+                   f"done={modern_totals['done']} pending={modern_totals['pending']} "
+                   f"blocked={modern_totals['blocked']}. Quality skills: /simplify "
+                   f"{skill_invoked['simplify']}x, /code-review {skill_invoked['code-review']}x. "
+                   f"Scanned {files_scanned} files.\n\n"
                    f"Full: {report_path}")
         url = os.environ.get("PB_CHATROOM_REST_URL", "http://127.0.0.1:7476")
         try:

@@ -63,6 +63,24 @@ def read_usage_rows():
     out = sorted(seen.values(), key=lambda r: r["stamp"])
     return out
 
+def latest_usage_report():
+    files = sorted(glob.glob(str(MON / "usage-telemetry" / "report-*.txt")))
+    return Path(files[-1]) if files else None
+
+def latest_modernization_projects():
+    """Parse the per-project rows out of the newest usage-telemetry report
+    (written by usage_telemetry.py's modernization_snapshot()) — the CSV only
+    carries fleet-wide totals, so per-project drill-down comes from the report
+    text, same pattern as latest_fleet()."""
+    rp = latest_usage_report()
+    if rp is None:
+        return []
+    txt = rp.read_text()
+    rows = []
+    for m in re.finditer(r"^\s{4}(\S+)\s+done=(\d+)\s+pending=(\d+)\s+blocked=(\d+)$", txt, re.M):
+        rows.append((m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))))
+    return rows
+
 def latest_evals():
     files = sorted(glob.glob(str(MON / "rule-evals" / "evals-*.txt")))
     if not files:
@@ -222,6 +240,41 @@ def main():
         spark_rows += (f'<div class="srow"><span class="blabel">{lbl}</span>'
                        f'{sparkline(series)}<span class="bval">{cur}</span></div>')
 
+    # rector adoption — fired/clean/degraded are cumulative session counts
+    # (same convention as guards); modernization done/pending/blocked is a
+    # SNAPSHOT of current repo state, so take the latest row, not a sum.
+    RECTOR = [("rector_fired", "fired"), ("rector_clean", "clean"),
+              ("rector_degraded", "degraded")]
+    cum_rector = {k: cum(k) for k, _ in RECTOR}
+    rector_total = sum(cum_rector.values())
+    rvmax = max(cum_rector.values(), default=0)
+    rector_bars = "".join(bar_row(lbl, cum_rector[k], rvmax, "var(--accent)")
+                          for k, lbl in RECTOR) if usage else '<p class="muted">no data yet</p>'
+    rector_spark_rows = ""
+    for k, lbl in RECTOR:
+        series = [int(r.get(k, 0)) for r in usage]
+        cur = series[-1] if series else 0
+        rector_spark_rows += (f'<div class="srow"><span class="blabel">{lbl}</span>'
+                              f'{sparkline(series)}<span class="bval">{cur}</span></div>')
+    latest_row = usage[-1] if usage else None
+    modern_done = int(latest_row.get("modernization_done", 0)) if latest_row else 0
+    modern_pending = int(latest_row.get("modernization_pending", 0)) if latest_row else 0
+    modern_blocked = int(latest_row.get("modernization_blocked", 0)) if latest_row else 0
+    modern_total_cells = modern_done + modern_pending + modern_blocked
+    modern_projects = latest_modernization_projects()
+    rector_state = "warning" if cum_rector["rector_degraded"] > 0 else ("accent" if usage else "muted")
+    usage_report = latest_usage_report()
+
+    # quality-skill adoption — cumulative real invocation counts, registered
+    # everywhere but only worth trusting once actually called
+    QSKILLS = [("simplify_invoked", "/simplify"), ("code_review_invoked", "/code-review")]
+    cum_qskill = {k: cum(k) for k, _ in QSKILLS}
+    qskill_total = sum(cum_qskill.values())
+    qvmax = max(cum_qskill.values(), default=0)
+    qskill_bars = "".join(bar_row(lbl, cum_qskill[k], qvmax, "var(--accent)")
+                          for k, lbl in QSKILLS) if usage else '<p class="muted">no data yet</p>'
+    qskill_state = "critical" if qskill_total == 0 else ("warning" if qskill_total < 5 else "good")
+
     # status tiles
     eval_state = "good" if evals and evals["npass"] == evals["n"] else ("critical" if evals else "muted")
     eval_val = f'{evals["npass"]}/{evals["n"]}' if evals else "—"
@@ -270,6 +323,18 @@ def main():
     else:
         fleet_rows = '<tr><td colspan="3" class="muted">no snapshot yet</td></tr>'
 
+    # modernization-sweep matrix table (per project, current repo state)
+    modern_rows = ""
+    for name, done, pending, blocked in modern_projects:
+        total = done + pending + blocked
+        pct = round(100 * done / total) if total else 0
+        tag = (f'<span class="chip {"ok" if blocked == 0 else "warn"}">'
+               f'{done}/{total} done{f", {blocked} blocked" if blocked else ""}</span>')
+        modern_rows += (f'<tr><td>{html.escape(name)}</td>'
+                        f'<td class="mono">{pct}%</td><td>{tag}</td></tr>')
+    if not modern_rows:
+        modern_rows = '<tr><td colspan="3" class="muted">no modernization-state.json found under ~/workspace</td></tr>'
+
     tiles = f'''
       <div class="tile {eval_state}"><div class="tlabel">Rule evals</div>
         <div class="tval">{eval_val}</div>
@@ -277,6 +342,12 @@ def main():
       <div class="tile accent"><div class="tlabel">Guards fired</div>
         <div class="tval">{guard_total}</div>
         <div class="tsub">cumulative, all guards</div></div>
+      <div class="tile {rector_state}"><div class="tlabel">Rector adoption</div>
+        <div class="tval">{cum_rector['rector_fired']}/{rector_total}</div>
+        <div class="tsub">fired/total runs · {modern_done}/{modern_total_cells} modules modernized</div></div>
+      <div class="tile {qskill_state}"><div class="tlabel">Quality skills used</div>
+        <div class="tval">{qskill_total}</div>
+        <div class="tsub">/simplify {cum_qskill['simplify_invoked']} · /code-review {cum_qskill['code_review_invoked']} — real invocations</div></div>
       <div class="tile {drift_state}"><div class="tlabel">Fleet config</div>
         <div class="tval">{drift_val}</div>
         <div class="tsub">vs baseline</div></div>
@@ -328,6 +399,7 @@ body{{margin:0;background:var(--bg);color:var(--ink);
 .wrap{{max-width:1000px;margin:0 auto;padding:2.5rem 1.25rem 4rem;
   display:flex;flex-direction:column;gap:2rem}}
 .mono{{font-family:ui-monospace,Menlo,Consolas,monospace}}
+a{{color:var(--accent)}}
 header h1{{font-size:1.5rem;margin:0 0 .25rem;letter-spacing:-.02em}}
 .sub{{color:var(--muted);font-size:.85rem;font-family:ui-monospace,Menlo,monospace}}
 h2{{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
@@ -403,6 +475,31 @@ A guard idle for many weeks is a pruning candidate; a spike signals workflow fri
 <p class="note">Blame-shift phrases in assistant text. Includes false positives
 (rule quotes, review docs) — a trend line, not a verdict; open the source session to confirm.</p></section>
 </div>
+
+<section><h2>Rector adoption — cumulative</h2>{rector_bars}
+{f'<p class="note"><a href="file://{html.escape(str(usage_report))}">view raw report ({usage_report.name})</a> · <a href="file://{html.escape(str(MON / "usage-telemetry" / "metrics.csv"))}">metrics.csv</a></p>' if usage_report else ''}
+<p class="note">How often <code>rector-check.sh</code> actually ran in real sessions across pb-hcf
+projects (build gate + pre-commit-adversarial-pass's rector-diff judgment step). "degraded" = the
+gate ran but the project isn't wired for rector yet (no <code>rector.php</code> / binary) — an
+adoption gap, not a usage count.</p></section>
+
+<div class="two">
+<section><h2>Rector trend</h2>{rector_spark_rows}
+<p class="note">Per-signal counts across telemetry runs.</p></section>
+<section><h2>Modernization-sweep matrix</h2>
+<div class="tval">{modern_done}/{modern_total_cells}</div>
+<div class="tsub">module × ruleset cells done, current repo state across all projects</div>
+<table style="margin-top:.75rem"><thead><tr><th>Project</th><th>% done</th><th>Status</th></tr></thead>
+<tbody>{modern_rows}</tbody></table>
+<p class="note">Snapshot of every <code>.claude/modernization-state.json</code> under
+<code>~/workspace</code> — not cumulative like the counts above, re-read fresh each run.</p></section>
+</div>
+
+<section><h2>Quality skills — cumulative real invocations</h2>{qskill_bars}
+<p class="note">Registered and available in every session (host + every ddev project) —
+this counts actual <code>/simplify</code> / <code>/code-review</code> invocations found in
+real transcripts, not availability. Available ≠ used; a skill sitting at 0 for weeks despite
+being on the always-listed menu means nobody is reaching for it, whatever the reason.</p></section>
 
 <section><h2>Rule evals — {evals["stamp"] if evals else "n/a"} · run {evals["runs"] if evals else 0}</h2>
 {eval_strip}</section>

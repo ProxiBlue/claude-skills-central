@@ -393,6 +393,41 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-precompact-guard.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-clear-end.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-clear-start.py",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
