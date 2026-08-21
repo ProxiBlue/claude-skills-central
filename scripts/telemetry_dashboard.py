@@ -137,6 +137,37 @@ def recent_alerts(n=12):
             rows.append((parts[0], parts[1], parts[2], parts[3] if len(parts) > 3 else ""))
     return list(reversed(rows))
 
+CRON_SNAPSHOT = Path(os.path.expanduser("~/.config/cron/crontab.lucas"))
+CRON_FIELD_RE = re.compile(r'^(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(.*)$')
+
+def read_crons():
+    """Parse ~/.config/cron/crontab.lucas (refreshed nightly by
+    ~/.config/cron/backup.sh) into (schedule, job_label, guard, full_cmd)
+    rows. guard = 'cron-guard' | 'monitor.sh' | 'none' (unwrapped — no
+    failure alert wired). Skips env-var header lines and comments."""
+    if not CRON_SNAPSHOT.exists():
+        return []
+    rows = []
+    for ln in CRON_SNAPSHOT.read_text().splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#") or re.match(r'^[A-Z_]+=\S*$', ln):
+            continue
+        m = CRON_FIELD_RE.match(ln)
+        if not m:
+            continue
+        schedule, cmd = m.group(1), m.group(2)
+        cg = re.search(r'cron-guard\.sh\s+(\S+)', cmd)
+        mo = re.search(r'monitor\.sh\s+(\S+)', cmd)
+        if cg:
+            guard, label = "cron-guard", cg.group(1)
+        elif mo:
+            guard, label = "monitor.sh", f"monitor {mo.group(1)}"
+        else:
+            first_tok = cmd.split()[0] if cmd.split() else cmd
+            guard, label = "none", os.path.basename(first_tok.split("=")[-1])
+        rows.append((schedule, label, guard, cmd))
+    return rows
+
 # job name -> max age in days before STALE (mirrors monitor.sh registry)
 JOB_MAXAGE = {"drift": 8, "usage": 8, "evals": 32, "dashboard": 2,
               "harness": 2, "pin": 2, "graphiti-backup": 2}
@@ -294,6 +325,31 @@ def main():
     ver_state = "warning" if ver_lag else "good"
 
     banned = cum("banned")
+
+    # crons — host inventory + recreate reference
+    crons = read_crons()
+    GUARD_CHIP = {"cron-guard": ("ok", "guarded"), "monitor.sh": ("ok", "monitor.sh"),
+                  "none": ("warn", "unguarded")}
+    cron_rows = ""
+    for schedule, label, guard, cmd in crons:
+        cls, chiptxt = GUARD_CHIP[guard]
+        cron_rows += (f'<tr><td class="mono">{html.escape(schedule)}</td>'
+                      f'<td>{html.escape(label)}</td>'
+                      f'<td><span class="chip {cls}">{chiptxt}</span></td>'
+                      f'<td class="mono" style="font-size:.72rem;color:var(--muted)" '
+                      f'title="{html.escape(cmd)}">{html.escape(cmd[:70])}{"…" if len(cmd) > 70 else ""}</td></tr>')
+    unguarded_n = sum(1 for *_, g, _ in crons if g == "none")
+    CONTAINER_CRONS = [
+        ("PVC + lcd-mageos", "* * * * *", "pb-chatroom heartbeat tick",
+         ".ddev/web-build/pb-chatroom.cron", "opt-in via .chatroom-auto.enabled sentinel"),
+        ("PVC + lcd-mageos", "0 */6 * * *", "pb-graphiti ticket ingest",
+         ".ddev/web-build/pb-graphiti.cron", "email ingest moved host-side 2026-07-17"),
+    ]
+    container_cron_rows = "".join(
+        f'<tr><td>{html.escape(proj)}</td><td class="mono">{html.escape(sched)}</td>'
+        f'<td>{html.escape(desc)}</td><td class="mono" style="font-size:.75rem">{html.escape(path)}</td>'
+        f'<td style="font-size:.78rem;color:var(--muted)">{html.escape(note)}</td></tr>'
+        for proj, sched, desc, path, note in CONTAINER_CRONS)
 
     # eval strip
     eval_strip = ""
@@ -503,6 +559,25 @@ being on the always-listed menu means nobody is reaching for it, whatever the re
 
 <section><h2>Rule evals — {evals["stamp"] if evals else "n/a"} · run {evals["runs"] if evals else 0}</h2>
 {eval_strip}</section>
+
+<section><h2>Crons — host ({len(crons)} jobs{f", {unguarded_n} unguarded" if unguarded_n else ""})</h2>
+<table><thead><tr><th>Schedule (UTC)</th><th>Job</th><th>Alerting</th><th>Command</th></tr></thead>
+<tbody>{cron_rows if cron_rows else '<tr><td colspan="4" class="muted">no crontab.lucas snapshot found</td></tr>'}</tbody></table>
+<p class="note">Live snapshot of <code>crontab -l</code>, refreshed nightly by
+<code>~/.config/cron/backup.sh</code> (git-backed in the dotfiles repo). "guarded" = wrapped in
+<code>cron-guard.sh</code> or dispatched via <code>monitor.sh</code> — both fire a
+desktop+email+alerts.log alert on nonzero exit. "unguarded" jobs fail silently into their log file.
+<b>Recreate everything:</b> <code>cd ~/.config/cron &amp;&amp; ./restore.sh</code> (reinstalls
+scripts + the full crontab from this snapshot). <b>Recreate one job:</b> copy its Command cell into
+<code>crontab -e</code>.</p></section>
+
+<section><h2>Crons — container (git-committed, not live-queried)</h2>
+<table><thead><tr><th>Project</th><th>Schedule</th><th>Job</th><th>Source</th><th>Note</th></tr></thead>
+<tbody>{container_cron_rows}</tbody></table>
+<p class="note">Committed per-project at <code>.ddev/web-build/*.cron</code> +
+<code>Dockerfile.ddev-cron</code> — <b>recreate:</b> <code>ddev restart</code> in the project
+rebuilds the container cron from these files. Not polled live here (containers may be stopped when
+this dashboard regenerates); this is the static reference, source of truth is the committed files.</p></section>
 
 <section><h2>Fleet consolidation — in-scope projects — {fleet["stamp"] if fleet else "n/a"}</h2>
 <table><thead><tr><th>Project</th><th>claude-code</th><th>Status</th></tr></thead>
