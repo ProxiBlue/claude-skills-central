@@ -2,7 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "claude-fable-5[1m]",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
