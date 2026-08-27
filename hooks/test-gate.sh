@@ -79,6 +79,12 @@ ROOT=$(tg_project_root "$CWD") || exit 0
 [ -z "$ROOT" ] && exit 0
 cd "$ROOT" 2>/dev/null || exit 0
 
+# Playwright configs may live in subdirs (tests/, tests/<suite>/), not repo root.
+tg_playwright_cfgs() {
+  find "$ROOT" -maxdepth 3 \( -name node_modules -o -name vendor -o -name dist -o -name .git \) -prune \
+    -o -type f \( -name 'playwright.config.js' -o -name 'playwright.config.ts' \) -print 2>/dev/null | head -5
+}
+
 # --- arm check ---------------------------------------------------------------
 CFG="$ROOT/.claude/test-gate.json"
 ENABLED=""
@@ -95,6 +101,7 @@ if [ -z "$ENABLED" ]; then
     [ -f "$ROOT/$f" ] && HAS_INFRA=1 && break
   done
   [ "$HAS_INFRA" = "0" ] && [ -f "$ROOT/vendor/bin/phpunit" ] && HAS_INFRA=1
+  [ "$HAS_INFRA" = "0" ] && [ -n "$(tg_playwright_cfgs)" ] && HAS_INFRA=1
   [ "$HAS_INFRA" = "0" ] && [ -d "$ROOT/dev/tests" ] && HAS_INFRA=1
   if [ "$HAS_INFRA" = "0" ] && [ -f "$ROOT/package.json" ]; then
     PJT=$(jq -r '.scripts.test // empty' "$ROOT/package.json" 2>/dev/null)
@@ -204,9 +211,9 @@ fi
 # --- block -------------------------------------------------------------------
 HINT=""
 [ -f "$CFG" ] && HINT=$(jq -r '.test_hint // empty' "$CFG" 2>/dev/null)
+PW_CFGS=$(tg_playwright_cfgs)
 if [ -z "$HINT" ]; then
   [ -f "$ROOT/vendor/bin/phpunit" ] && HINT="vendor/bin/phpunit (use the project's phpunit.xml / dev/tests config)"
-  { [ -f "$ROOT/playwright.config.js" ] || [ -f "$ROOT/playwright.config.ts" ]; } && HINT="${HINT:+$HINT ; }npx playwright test"
   [ -z "$HINT" ] && HINT="this project's test suite (see package.json / dev/tests)"
 fi
 
@@ -224,11 +231,24 @@ FILE_LIST=$(printf '%s\n' "$GATED" | head -20 | sed 's/^/    /')
   fi
   echo ""
   echo "What to do:"
-  echo "  1. Run the tests NOW via the Bash tool: $HINT"
+  echo "  1. Run the unit tests NOW via the Bash tool: $HINT"
   echo "     (a passing run auto-records evidence; no extra step needed)"
-  echo "  2. Then retry the $OP. Any code edit AFTER the test run invalidates"
+  N=2
+  if [ -n "$PW_CFGS" ]; then
+    N=3
+    echo "  2. ALSO run the RELATED Playwright e2e specs — this project depends on"
+    echo "     e2e coverage, not phpunit alone. Do NOT run the full e2e suite:"
+    echo "     identify the spec files covering the changed functions/flows"
+    echo "     (grep the spec dirs for the affected feature/route/selector) and"
+    echo "     run only those, e.g.: npx playwright test <related>.spec.ts -c <config>"
+    echo "     Playwright configs found:"
+    printf '%s\n' "$PW_CFGS" | sed "s|^$ROOT/|       |"
+    echo "     If genuinely NO e2e spec touches the changed behavior, say so"
+    echo "     explicitly in your summary — do not silently skip this step."
+  fi
+  echo "  $N. Then retry the $OP. Any code edit AFTER the test run invalidates"
   echo "     the evidence — rerun tests after fixes."
-  echo "  3. If tests fail, fix the code first. Never commit failing work."
+  echo "  $((N+1)). If tests fail, fix the code first. Never commit failing work."
   echo ""
   echo "Do NOT work around this gate:"
   echo "  - Do not edit/delete the evidence file, this hook, or .claude/test-gate.json."
