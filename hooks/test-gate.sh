@@ -21,6 +21,9 @@
 #   {
 #     "enabled": true|false,          // explicit on/off; wins over auto-detect
 #     "test_hint": "ddev exec vendor/bin/phpunit -c dev/tests/unit/phpunit.xml",
+#     "required_families": ["unit","e2e"],  // evidence families that must each
+#                                           // pass; default = auto-detect
+#                                           // (phpunit infra→unit, playwright cfg→e2e)
 #     "code_patterns": ["\\.(php|phtml|js|ts)$"],   // regex allowlist override
 #     "exempt_patterns": ["^docs/", "^Test/fixtures/"],
 #     "coverage": {                   // opt-in changed-line coverage gate
@@ -70,6 +73,10 @@ FIRST_CD=$(printf '%s' "$CMD" | grep -oE '^[[:space:]]*cd[[:space:]]+[^;&|]+' | 
   | sed -E 's/^[[:space:]]*cd[[:space:]]+//; s/[[:space:]]+$//')
 if [ -n "$FIRST_CD" ]; then
   case "$FIRST_CD" in
+    "~")   FIRST_CD="$HOME" ;;
+    "~/"*) FIRST_CD="$HOME/${FIRST_CD#\~/}" ;;
+  esac
+  case "$FIRST_CD" in
     /*) CWD="$FIRST_CD" ;;
     *)  CWD="$CWD/$FIRST_CD" ;;
   esac
@@ -85,8 +92,24 @@ tg_playwright_cfgs() {
     -o -type f \( -name 'playwright.config.js' -o -name 'playwright.config.ts' \) -print 2>/dev/null | head -5
 }
 
-# --- arm check ---------------------------------------------------------------
+# --- infra detection (feeds arm check, evidence families, and hint) ----------
 CFG="$ROOT/.claude/test-gate.json"
+PW_CFGS=$(tg_playwright_cfgs)
+UNIT_INFRA=0
+for f in phpunit.xml phpunit.xml.dist phpunit.dist.xml; do
+  [ -f "$ROOT/$f" ] && UNIT_INFRA=1 && break
+done
+[ "$UNIT_INFRA" = "0" ] && [ -f "$ROOT/vendor/bin/phpunit" ] && UNIT_INFRA=1
+[ "$UNIT_INFRA" = "0" ] && [ -d "$ROOT/dev/tests" ] && UNIT_INFRA=1
+if [ "$UNIT_INFRA" = "0" ] && [ -f "$ROOT/package.json" ]; then
+  PJT=$(jq -r '.scripts.test // empty' "$ROOT/package.json" 2>/dev/null)
+  case "$PJT" in
+    ''|*'no test specified'*) : ;;
+    *) UNIT_INFRA=1 ;;
+  esac
+fi
+
+# --- arm check ---------------------------------------------------------------
 ENABLED=""
 if [ -f "$CFG" ]; then
   ENABLED=$(jq -r '.enabled // empty' "$CFG" 2>/dev/null)
@@ -95,22 +118,17 @@ if [ "$ENABLED" = "false" ]; then
   exit 0
 fi
 if [ -z "$ENABLED" ]; then
-  # auto-detect test infrastructure
-  HAS_INFRA=0
-  for f in phpunit.xml phpunit.xml.dist phpunit.dist.xml playwright.config.js playwright.config.ts; do
-    [ -f "$ROOT/$f" ] && HAS_INFRA=1 && break
-  done
-  [ "$HAS_INFRA" = "0" ] && [ -f "$ROOT/vendor/bin/phpunit" ] && HAS_INFRA=1
-  [ "$HAS_INFRA" = "0" ] && [ -n "$(tg_playwright_cfgs)" ] && HAS_INFRA=1
-  [ "$HAS_INFRA" = "0" ] && [ -d "$ROOT/dev/tests" ] && HAS_INFRA=1
-  if [ "$HAS_INFRA" = "0" ] && [ -f "$ROOT/package.json" ]; then
-    PJT=$(jq -r '.scripts.test // empty' "$ROOT/package.json" 2>/dev/null)
-    case "$PJT" in
-      ''|*'no test specified'*) : ;;
-      *) HAS_INFRA=1 ;;
-    esac
-  fi
-  [ "$HAS_INFRA" = "0" ] && exit 0
+  [ "$UNIT_INFRA" = "0" ] && [ -z "$PW_CFGS" ] && exit 0
+fi
+
+# Evidence families this project must show at the current state hash.
+# Override via config: "required_families": ["unit","e2e"]
+REQ_FAMS=""
+[ -f "$CFG" ] && REQ_FAMS=$(jq -r '(.required_families // []) | join(" ")' "$CFG" 2>/dev/null)
+if [ -z "$REQ_FAMS" ]; then
+  [ "$UNIT_INFRA" = "1" ] && REQ_FAMS="unit"
+  [ -n "$PW_CFGS" ] && REQ_FAMS="${REQ_FAMS:+$REQ_FAMS }e2e"
+  [ -z "$REQ_FAMS" ] && REQ_FAMS="unit"
 fi
 
 # --- changed code files ------------------------------------------------------
@@ -161,9 +179,19 @@ fi
 EF=$(tg_evidence_file "$ROOT")
 HASH=$(tg_state_hash "$ROOT")
 
+# Per-family check: every required family needs a passing run at the current
+# state hash. Legacy records without a family field count as "unit".
 PASSED=""
+MISSING_FAMS="$REQ_FAMS"
 if [ -n "$EF" ] && [ -f "$EF" ] && [ -n "$HASH" ]; then
-  PASSED=$(jq -r --arg h "$HASH" 'select(.type=="test" and .state==$h and .exit_code==0) | .ts' "$EF" 2>/dev/null | tail -1)
+  MISSING_FAMS=""
+  for FAM in $REQ_FAMS; do
+    P=$(jq -r --arg h "$HASH" --arg f "$FAM" \
+      'select(.type=="test" and .state==$h and .exit_code==0) | select((.family // "unit")==$f) | .ts' \
+      "$EF" 2>/dev/null | tail -1)
+    [ -z "$P" ] && MISSING_FAMS="${MISSING_FAMS:+$MISSING_FAMS }$FAM"
+  done
+  [ -z "$MISSING_FAMS" ] && PASSED="ok"
 fi
 
 if [ "$OP" = "push" ] && [ -z "$PASSED" ]; then
@@ -211,7 +239,6 @@ fi
 # --- block -------------------------------------------------------------------
 HINT=""
 [ -f "$CFG" ] && HINT=$(jq -r '.test_hint // empty' "$CFG" 2>/dev/null)
-PW_CFGS=$(tg_playwright_cfgs)
 if [ -z "$HINT" ]; then
   [ -f "$ROOT/vendor/bin/phpunit" ] && HINT="vendor/bin/phpunit (use the project's phpunit.xml / dev/tests config)"
   [ -z "$HINT" ] && HINT="this project's test suite (see package.json / dev/tests)"
@@ -220,8 +247,16 @@ fi
 FILE_LIST=$(printf '%s\n' "$GATED" | head -20 | sed 's/^/    /')
 [ -z "$FILE_LIST" ] && FILE_LIST="    (outgoing commits — no per-file breakdown available)"
 
+fam_missing() {
+  case " $MISSING_FAMS " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+
 {
   echo "BLOCKED by test-gate.sh: git $OP without passing test evidence for the current code state."
+  if [ -n "$MISSING_FAMS" ]; then
+    echo "Required evidence families: $REQ_FAMS — MISSING at current state: $MISSING_FAMS"
+    echo "(each family needs its own passing run; a phpunit pass does NOT cover e2e)"
+  fi
   echo ""
   if [ -n "$COV_FAIL" ]; then
     echo -e "$COV_FAIL"
@@ -231,20 +266,24 @@ FILE_LIST=$(printf '%s\n' "$GATED" | head -20 | sed 's/^/    /')
   fi
   echo ""
   echo "What to do:"
-  echo "  1. Run the unit tests NOW via the Bash tool: $HINT"
-  echo "     (a passing run auto-records evidence; no extra step needed)"
-  N=2
-  if [ -n "$PW_CFGS" ]; then
-    N=3
-    echo "  2. ALSO run the RELATED Playwright e2e specs — this project depends on"
+  N=1
+  if [ -z "$MISSING_FAMS" ] || fam_missing unit; then
+    echo "  $N. Run the unit tests NOW via the Bash tool: $HINT"
+    echo "     (a passing run auto-records evidence; no extra step needed)"
+    N=$((N+1))
+  fi
+  if [ -n "$PW_CFGS" ] && { [ -z "$MISSING_FAMS" ] || fam_missing e2e; }; then
+    echo "  $N. Run the RELATED Playwright e2e specs — this project depends on"
     echo "     e2e coverage, not phpunit alone. Do NOT run the full e2e suite:"
     echo "     identify the spec files covering the changed functions/flows"
     echo "     (grep the spec dirs for the affected feature/route/selector) and"
     echo "     run only those, e.g.: npx playwright test <related>.spec.ts -c <config>"
     echo "     Playwright configs found:"
     printf '%s\n' "$PW_CFGS" | sed "s|^$ROOT/|       |"
-    echo "     If genuinely NO e2e spec touches the changed behavior, say so"
-    echo "     explicitly in your summary — do not silently skip this step."
+    echo "     If genuinely NO e2e spec touches the changed behavior, run the"
+    echo "     nearest smoke/spec instead and say so explicitly in your summary"
+    echo "     — the e2e evidence requirement does not waive itself."
+    N=$((N+1))
   fi
   echo "  $N. Then retry the $OP. Any code edit AFTER the test run invalidates"
   echo "     the evidence — rerun tests after fixes."

@@ -3,10 +3,11 @@
 # checks at commit/push time. Two record types, appended to
 # <git-dir>/claude-test-gate/evidence.jsonl:
 #
-#   {"type":"test","ts":...,"state":<state-hash>,"exit_code":N,"cmd":...}
+#   {"type":"test","family":"unit"|"e2e","ts":...,"state":<hash>,"exit_code":N,"cmd":...}
 #       written when the Bash command was a real test-runner invocation
-#       (see tg_is_test_command — mentions of "phpunit" in grep/echo do NOT
-#       count). state is the working-tree content hash at recording time; any
+#       (see tg_test_families — mentions of "phpunit" in grep/echo do NOT
+#       count; a chain running both runners records one line per family).
+#       state is the working-tree content hash at recording time; any
 #       later edit produces a different hash, invalidating the evidence.
 #
 #   {"type":"commit","ts":...,"head":<sha>}
@@ -52,6 +53,10 @@ FIRST_CD=$(printf '%s' "$CMD" | grep -oE '^[[:space:]]*cd[[:space:]]+[^;&|]+' | 
   | sed -E 's/^[[:space:]]*cd[[:space:]]+//; s/[[:space:]]+$//')
 if [ -n "$FIRST_CD" ]; then
   case "$FIRST_CD" in
+    "~")   FIRST_CD="$HOME" ;;
+    "~/"*) FIRST_CD="$HOME/${FIRST_CD#\~/}" ;;
+  esac
+  case "$FIRST_CD" in
     /*) CWD="$FIRST_CD" ;;
     *)  CWD="$CWD/$FIRST_CD" ;;
   esac
@@ -72,13 +77,16 @@ trim_log() {
   fi
 }
 
-if tg_is_test_command "$CMD"; then
+FAMS=$(tg_test_families "$CMD")
+if [ -n "$FAMS" ]; then
   # non-zero only possible if a future harness adds the field — skip record
   [ "$EXIT_CODE" = "0" ] || exit 0
   HASH=$(tg_state_hash "$ROOT")
   [ -z "$HASH" ] && exit 0
-  jq -cn --arg ts "$TS" --arg state "$HASH" --argjson ec "$EXIT_CODE" --arg cmd "$CMD" \
-    '{type:"test", ts:$ts, state:$state, exit_code:$ec, cmd:$cmd}' >> "$EF" 2>/dev/null
+  for FAM in $FAMS; do
+    jq -cn --arg ts "$TS" --arg state "$HASH" --argjson ec "$EXIT_CODE" --arg cmd "$CMD" --arg fam "$FAM" \
+      '{type:"test", family:$fam, ts:$ts, state:$state, exit_code:$ec, cmd:$cmd}' >> "$EF" 2>/dev/null
+  done
   trim_log
   exit 0
 fi

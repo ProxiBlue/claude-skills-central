@@ -26,15 +26,24 @@ always-loaded context growth).
    infection/playwright test/jest/vitest/pytest/npm test/composer test/
    `bin/magento dev:tests:run`, incl. `php`/`npx`/`ddev exec` wrappers), a JSONL
    record lands in `<git-dir>/claude-test-gate/evidence.jsonl`:
-   `{"type":"test","state":<hash>,"exit_code":N,...}`.
+   `{"type":"test","family":"unit"|"e2e","state":<hash>,"exit_code":N,...}`.
+   The **family** classifies the runner: playwright/codeception/behat and
+   npm-style `*e2e*` scripts record `e2e`; phpunit/pest/jest/vitest/pytest/…
+   record `unit` (legacy records without the field count as unit). A chain
+   running both records one line per family.
    The **state hash** covers HEAD + full working-tree diff + untracked file
    content — so `git add` keeps evidence valid, while ANY edit after the test
    run invalidates it. Mentions of a runner in `grep`/`echo` do NOT count
    (first-token detection, not substring match).
 2. **Gate**: on `git commit`, staged (+ `-a` swept) files are filtered to code
    (`.php .phtml .js .mjs .cjs .ts .tsx .jsx .graphql(s)` by default). If any
-   remain, there must be a `type:test, exit_code:0` record at the CURRENT state
-   hash, else exit 2. Docs/config-only commits pass untouched.
+   remain, EVERY required evidence family needs a `type:test, exit_code:0`
+   record at the CURRENT state hash, else exit 2. Required families are
+   auto-detected — phpunit infra ⇒ `unit`, any playwright config (root or up
+   to 3 dirs deep) ⇒ `e2e` — so a Magento project with both must show BOTH a
+   passing phpunit run AND a passing (related-specs) playwright run; a phpunit
+   pass alone no longer clears the gate. Override with `required_families` in
+   config. Docs/config-only commits pass untouched.
 3. **Push**: outgoing range (`@{u}..HEAD` with fallbacks) is checked the same
    way; a HEAD blessed by a previously gated commit passes without a re-run
    (`test-evidence.sh` records `{"type":"commit","head":<sha>}` after each
@@ -50,6 +59,7 @@ always-loaded context growth).
 {
   "enabled": true,
   "test_hint": "ddev exec vendor/bin/phpunit -c dev/tests/unit/phpunit.xml",
+  "required_families": ["unit", "e2e"],
   "code_patterns": ["\\.(php|phtml|js|ts)$"],
   "exempt_patterns": ["^docs/", "^Test/fixtures/"],
   "coverage": {
@@ -64,6 +74,9 @@ always-loaded context growth).
 - `test_hint` — shown in the block message; point it at the RIGHT suite
   invocation for the project (targeted per-testsuite runs per the HCF
   test-collision note).
+- `required_families` — evidence families that must EACH have a passing run
+  at the current state (`unit`, `e2e`). Omit for auto-detect; set `["unit"]`
+  to opt a playwright-bearing project out of the e2e requirement.
 - `coverage` — opt-in changed-line coverage gate (commit-time, PHP only).
   Generate clover in the test run, e.g.
   `XDEBUG_MODE=coverage vendor/bin/phpunit -c dev/tests/unit/phpunit.xml --coverage-clover var/coverage/clover.xml`.

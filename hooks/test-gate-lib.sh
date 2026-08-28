@@ -38,6 +38,8 @@ tg_state_hash() {
     {
       git rev-parse HEAD 2>/dev/null || echo NOHEAD
       git diff HEAD 2>/dev/null
+      # `git diff HEAD` fails in a no-commit repo — --cached still sees staged
+      git diff --cached 2>/dev/null
       git ls-files -o --exclude-standard 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
         [ -f "$f" ] && sha1sum -- "$f" 2>/dev/null
       done
@@ -49,8 +51,13 @@ tg_state_hash() {
 # A command counts as a test run only when a known runner is the COMMAND of a
 # shell segment (first token after env prefixes / wrappers), not a mere mention
 # in arguments. `grep phpunit x` or `echo "run phpunit"` do NOT count.
+#
+# Runners are classified into evidence FAMILIES so the gate can require both:
+#   unit — phpunit/pest/jest/vitest/pytest/... (also legacy records w/o family)
+#   e2e  — playwright/codeception/behat, and npm-style scripts named *e2e*
 
-# Internal: check one segment's token list. Args are the segment's words.
+# Internal: echo family (unit|e2e) for one segment's token list; fail if not a
+# test invocation.
 tg__segment_is_test() {
   local depth=0 t
   while [ $# -gt 0 ] && [ $depth -lt 8 ]; do
@@ -64,28 +71,39 @@ tg__segment_is_test() {
     esac
     local base="${t##*/}"
     case "$base" in
-      phpunit|paratest|pest|codecept|codeception|behat|infection|jest|vitest|pytest)
-        return 0 ;;
+      phpunit|paratest|pest|infection|jest|vitest|pytest)
+        echo unit; return 0 ;;
+      codecept|codeception|behat)
+        echo e2e; return 0 ;;
       playwright)
-        [ "${2:-}" = "test" ] && return 0
+        [ "${2:-}" = "test" ] && { echo e2e; return 0; }
         return 1 ;;
       npm|pnpm)
         shift
         if [ "${1:-}" = "run" ] || [ "${1:-}" = "run-script" ]; then shift; fi
-        case "${1:-}" in test|test:*|tests) return 0 ;; esac
+        case "${1:-}" in
+          *e2e*|*playwright*) echo e2e; return 0 ;;
+          test|test:*|tests) echo unit; return 0 ;;
+        esac
         return 1 ;;
       yarn)
         shift
         [ "${1:-}" = "run" ] && shift
-        case "${1:-}" in test|test:*|tests) return 0 ;; esac
+        case "${1:-}" in
+          *e2e*|*playwright*) echo e2e; return 0 ;;
+          test|test:*|tests) echo unit; return 0 ;;
+        esac
         return 1 ;;
       composer)
         shift
         if [ "${1:-}" = "run" ] || [ "${1:-}" = "run-script" ]; then shift; fi
-        case "${1:-}" in test|test:*|tests) return 0 ;; esac
+        case "${1:-}" in
+          *e2e*|*playwright*) echo e2e; return 0 ;;
+          test|test:*|tests) echo unit; return 0 ;;
+        esac
         return 1 ;;
       magento)
-        case "${2:-}" in dev:tests:run*) return 0 ;; esac
+        case "${2:-}" in dev:tests:run*) echo unit; return 0 ;; esac
         return 1 ;;
       php|npx|node|sudo|time|nice|xvfb-run)
         # wrapper: skip it and its option flags, re-evaluate next real token
@@ -106,14 +124,20 @@ tg__segment_is_test() {
   return 1
 }
 
-# True (exit 0) when the command string contains a test-runner invocation.
-tg_is_test_command() {
+# Echo the distinct families of every test-runner invocation in the command
+# string, one per line (a `phpunit && playwright test` chain yields both).
+# Empty output = not a test command.
+tg_test_families() {
   local cmd="$1" seg
   while IFS= read -r seg; do
     # shellcheck disable=SC2086
-    ( set -f; set -- $seg; tg__segment_is_test "$@" ) && return 0
-  done <<EOF
+    ( set -f; set -- $seg; tg__segment_is_test "$@" )
+  done <<EOF | sort -u | grep .
 $(printf '%s\n' "$cmd" | sed -E 's/(\|\|)|(&&)|;|\||\$\(/\n/g')
 EOF
-  return 1
+}
+
+# True (exit 0) when the command string contains a test-runner invocation.
+tg_is_test_command() {
+  [ -n "$(tg_test_families "$1")" ]
 }
