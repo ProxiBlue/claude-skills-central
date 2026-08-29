@@ -38,9 +38,53 @@ Goal: current suites honest and green; record a baseline before restructuring.
       spec waits for the checkmo radio. Re-enabled dev-only 2026-08-28; buckets rerunning.
       Harness self-tests (_console_error_gate/_trap) fail ONLY under workers=4 — pass
       22/22 in isolation → parallelism flake, make serial in P1.
-      → P3b/P4 rider: PREFLIGHT env-precondition check (required payment methods, etc.)
-      that fails fast with a named cause instead of 1.5h of timeouts.
-- [ ] Baseline lcd (blocked on GITHUB_400 branch coordination).
+      → P3b/P4 rider: PREFLIGHT env-precondition check that fails fast with a named
+      cause instead of 1.5h of timeouts. Preconditions found so far (pps):
+      (1) payment/checkmo/active=1 (env.php, dev-only — fixed 2026-08-28),
+      (2) customer_grid indexer realtime (container cron is OFF by fleet policy, so
+      by-schedule = permanently stale grid; set realtime 2026-08-28 — cured the
+      deterministic tax-exempt-already-exempt-hidden failure, 2/2 green),
+      (3) site build healthy (composer install + build-dev; PDP curl 200 check),
+      (4) xdebug OFF (lcd 2026-08-29: xdebug+opcache under parallel browser load =
+      fpm SIGSEGV crashloop → URL-specific 502s; `ddev xdebug off` cured it),
+      (5) playwright browsers present (ddev restart wipes /opt/playwright-browsers).
+      PATTERN (both shops, same day): "Cannot gather stats!" FileSystemException
+      appears after heavy parallel suite runs — dev-mode on-demand static/generated
+      materialization racing parallel browsers corrupts state; admin placeOrder then
+      500s silently (UI swallows it, spec times out at 90s with no error surfaced).
+      → P4 preflight: warm/deploy static BEFORE the suite (build-dev or
+      setup:static-content:deploy) + curl-200 canary on PDP AND an admin route;
+      loop should treat "Cannot gather stats" in exception.log as env-fault, not
+      test-fault, and self-heal via build-dev.
+      POST-FIX: stripe 17/17 green (23.6m, was 4P/13F@1.5h); checkout 49P/1F→fixed.
+      CLEAN pps BASELINE (post env fixes): checkout 49P + stripe 17P green;
+      pps 291P/8F/160S (all 8F = harness self-test parallel flake — P1: pin
+      _console_error_* serial/chromium; didn't repro under light 4-worker mix,
+      needs full-bucket load) ; hyva 171P/0F ; pps-admin 7P/0F ; admin 24P/1flaky.
+      ONE real-bug candidate: checkout.grandtotal-invariant on Galaxy S24 —
+      shipping total renders 0 + console errors on mobile (#445 invariant firing).
+      Needs trace triage → possible live mobile checkout bug, escalate to Lucas.
+      P1 note (lcd): test:all chains with && — first red bucket aborts the rest;
+      port pps #428 non-aborting umbrella.
+- [x] lcd P0 shipped 2026-08-28 (branch e2e-final-gate-p0 off live, dcd1b730b):
+      auto-relate 13→9 honest, contact honest selectors, #329 zombie un-skipped
+      (passes), 6 orphan specs wired into test:all, docs fixed, Cypress tree removed.
+- [x] Baseline lcd full run (2026-08-29, post all fixes): admin 15P/9S ✅,
+      admin:lcd 26P/8F/30S ❌, frontend:lcd 90P/3S ✅ (incl. rewritten specs),
+      hyva 172P/2flaky/117S ✅. Non-aborting umbrella verified working.
+      KNOWN ISSUE (lcd, infra not tests): the 8 admin:lcd failures = 4 specs ×2
+      browsers (admin_checkout Direct Deposit + order_email ×3), all admin
+      placeOrder 90s-hang. Pass in isolation/fresh; fail at the end of a ~1h
+      bucket. php-fpm SIGSEGV crashloop persists (84 since restart; xdebug off
+      did NOT cure; JIT off; cores go to host apport, no gdb in container).
+      NEEDS dedicated debugging session (core backtrace on host). Until fixed,
+      admin:lcd bucket is trustworthy only on a fresh container.
+      Framework fixes shipped during validation (both checkouts): verifyPageTitle
+      → toHaveText+useInnerText (visible-text resolver reads Hyva md:sr-only PDP
+      h1 as ""), testResultsDir anchored on __dirname (cwd-relative overshot to
+      /var/www/test-results from tests/lcd). P4 note: pps fixture artifacts now
+      under tests/m2-hyva-playwright/test-results/ while reporters write
+      project-root test-results/ — unify in the P4 report contract.
 
 ## Phase 1 — One spec, one owner (dedup)
 
