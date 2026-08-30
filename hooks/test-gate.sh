@@ -24,8 +24,14 @@
 #     "required_families": ["unit","e2e"],  // evidence families that must each
 #                                           // pass; default = auto-detect
 #                                           // (phpunit infra→unit, playwright cfg→e2e)
+#     "hash_exempt": [".claude/scheduled_tasks.lock"],  // pathspecs excluded from
+#                                           // the state hash (churn files only)
 #     "code_patterns": ["\\.(php|phtml|js|ts)$"],   // regex allowlist override
 #     "exempt_patterns": ["^docs/", "^Test/fixtures/"],
+#     "relevance": {                  // per-change-set "does a test exist AND run"
+#       "mode": "block"|"warn"|"off", // default block (layer is ON by default)
+#       "no_test_ok": ["^app/design/"]  // files allowed to commit without a test
+#     },
 #     "coverage": {                   // opt-in changed-line coverage gate
 #       "clover": "var/coverage/clover.xml",
 #       "min_pct": 60,
@@ -171,6 +177,22 @@ if [ -n "$EXEMPT_RE" ] && [ -n "$GATED" ]; then
   GATED=$(printf '%s\n' "$GATED" | grep -vE "$EXEMPT_RE" 2>/dev/null)
 fi
 
+# Pure test-file change set: committing/pushing ONLY tests needs no test-run
+# evidence — we do not require tests for tests.
+if [ -n "$GATED" ]; then
+  NONTEST=""
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    tg_is_test_path "$f" || NONTEST=1
+  done <<EOF
+$GATED
+EOF
+  if [ -z "$NONTEST" ]; then
+    [ "$OP" = "commit" ] && exit 0
+    GATED=""  # push: falls through to the no-code-in-range pass below
+  fi
+fi
+
 if [ "$OP" = "commit" ] && [ -z "$GATED" ]; then
   exit 0  # docs/config-only commit — not gated
 fi
@@ -204,6 +226,95 @@ if [ "$OP" = "push" ] && [ -z "$PASSED" ]; then
   [ -z "$PASSED" ] && [ -z "$GATED" ] && [ -n "$BASE" ] && exit 0
 fi
 
+# --- relevance layer (commit-time, default ON) -------------------------------
+# The family gate proves "a suite passed"; this layer proves the suite was
+# ABOUT the change: every changed code file needs (a) a discoverable test
+# (name-mapped or content-grep candidate) and (b) that test actually executed
+# in the recorded passing run (named in a targeted run, or any broad
+# whole-suite run). Closes the "one green unrelated spec opens the gate for
+# the whole change set" hole from the known-limits list.
+# Config: {"relevance":{"mode":"block"|"warn"|"off","no_test_ok":["^regex",...]}}
+# Env (user-only, pre-session): CLAUDE_TEST_GATE_RELEVANCE=off|warn
+REL_FAIL=""
+REL_MODE=""
+rel_gate() {
+  local mode ntre runs rc broad tcmds tests f cands c cb hit sb noexist norun
+  mode="${CLAUDE_TEST_GATE_RELEVANCE:-}"
+  if [ -z "$mode" ] && [ -f "$CFG" ]; then
+    mode=$(jq -r '.relevance.mode // empty' "$CFG" 2>/dev/null)
+  fi
+  [ -z "$mode" ] && mode="block"
+  REL_MODE="$mode"
+  [ "$mode" = "off" ] && return 0
+  [ -z "$GATED" ] && return 0
+
+  ntre=""
+  [ -f "$CFG" ] && ntre=$(jq -r '(.relevance.no_test_ok // []) | join("|")' "$CFG" 2>/dev/null)
+
+  # passing runs at the current state; a run with no explicit test-file /
+  # --filter target is a broad whole-suite run and covers every candidate
+  runs=$(jq -r --arg h "$HASH" \
+    'select(.type=="test" and .state==$h and .exit_code==0) | .cmd' "$EF" 2>/dev/null | sort -u)
+  broad=0; tcmds=""
+  while IFS= read -r rc; do
+    [ -z "$rc" ] && continue
+    if printf '%s\n' "$rc" | tr ' \t' '\n\n' \
+        | grep -qE '(Test\.php|\.(spec|test)\.[a-z]+)$|^--filter'; then
+      tcmds="$tcmds$rc
+"
+    else
+      broad=1
+    fi
+  done <<EOF
+$runs
+EOF
+
+  tests=$(tg_test_files "$ROOT")
+  noexist=""; norun=""
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if [ -n "$ntre" ] && printf '%s\n' "$f" | grep -qE "$ntre"; then continue; fi
+    cands=$(tg_candidate_tests "$ROOT" "$f" "$tests")
+    if [ -z "$cands" ]; then
+      noexist="${noexist}    $f
+"
+      continue
+    fi
+    [ "$broad" = "1" ] && continue
+    hit=""
+    while IFS= read -r c; do
+      [ -z "$c" ] && continue
+      cb="${c##*/}"
+      if printf '%s' "$tcmds" | grep -qF "${cb%.*}"; then hit=1; break; fi
+    done <<EOF
+$cands
+EOF
+    if [ -z "$hit" ]; then
+      # `--filter Foo` style: the source stem in a targeted cmd also counts
+      sb="${f##*/}"; sb="${sb%.*}"
+      [ -n "$sb" ] && printf '%s' "$tcmds" | grep -qF "$sb" && hit=1
+    fi
+    if [ -z "$hit" ]; then
+      norun="${norun}    $f
+      -> has test(s): $(printf '%s\n' "$cands" | head -3 | tr '\n' ' ')
+"
+    fi
+  done <<EOF
+$GATED
+EOF
+
+  [ -z "$noexist" ] && [ -z "$norun" ] && return 0
+  if [ -n "$noexist" ]; then
+    REL_FAIL="No test found that specifically covers these changed code files:
+$noexist"
+  fi
+  if [ -n "$norun" ]; then
+    REL_FAIL="${REL_FAIL}Tests EXIST for these changed files but the recorded passing run did NOT execute them:
+$norun"
+  fi
+  return 1
+}
+
 # --- coverage layer (opt-in) -------------------------------------------------
 cov_gate() {
   [ -f "$CFG" ] || return 0
@@ -229,12 +340,50 @@ cov_gate() {
 
 COV_FAIL=""
 if [ -n "$PASSED" ] && [ "$OP" = "commit" ]; then
-  if ! cov_gate; then
+  if ! rel_gate; then
+    if [ "$REL_MODE" = "warn" ]; then
+      { echo "test-gate relevance WARN (would block in block mode):"
+        printf '%s\n' "$REL_FAIL"; } >&2
+      REL_FAIL=""
+    else
+      PASSED=""
+    fi
+  fi
+  if [ -n "$PASSED" ] && ! cov_gate; then
     PASSED=""
   fi
 fi
 
 [ -n "$PASSED" ] && exit 0
+
+# --- block: relevance layer --------------------------------------------------
+if [ -n "$REL_FAIL" ]; then
+  {
+    echo "BLOCKED by test-gate.sh (relevance layer): git $OP — changed code has no test that specifically covers it (or that test was not run)."
+    echo ""
+    printf '%s\n' "$REL_FAIL"
+    echo "What to do:"
+    echo "  1. Files with NO test: write one FIRST (mapped location, e.g."
+    echo "     Model/Foo.php -> Test/Unit/Model/FooTest.php, foo.ts -> foo.spec.ts),"
+    echo "     make it pass, then retry the $OP."
+    echo "  2. Files whose tests exist but were not run: run those tests NOW via the"
+    echo "     Bash tool — targeted (name the file / --filter) or the full suite —"
+    echo "     then retry. Any code edit after the run invalidates the evidence."
+    echo "  3. If a changed file is genuinely not testable (pure config glue,"
+    echo "     generated code, display-only template), STOP and ASK THE USER whether"
+    echo "     to proceed without a test. Do not decide this yourself."
+    echo ""
+    echo "Do NOT work around this gate: no evidence-file edits, no hook/config edits,"
+    echo "no sub-agent or wrapper $OP. User-only opt-outs: \"relevance\":{\"no_test_ok\":"
+    echo "[...]} or {\"mode\":\"warn\"|\"off\"} in .claude/test-gate.json, or"
+    echo "export CLAUDE_TEST_GATE_RELEVANCE=off before starting claude."
+  } >&2
+  if [ "$MODE" = "warn" ]; then
+    echo "test-gate: WARN mode — the above would have blocked in block mode." >&2
+    exit 0
+  fi
+  exit 2
+fi
 
 # --- block -------------------------------------------------------------------
 HINT=""
