@@ -96,6 +96,16 @@ Goal: every behavior asserted in exactly one place; no silent skip maps.
 - [ ] Delete byte-copy data shadow files (pps: cms/configurable_product/home/navigation/sidecart/simple_product; lcd: 9 of 11 data files unreachable). `loadJsonData` fallback covers them; where a real override exists, keep only the delta... or inline data into the spec since overlay is retired (see Phase 3 policy).
 - [ ] Prune near-empty locator stubs (pps: page/product/customer/cms/home.locator.ts 2-liners; the 62-line pure re-export cart.locator.ts).
 
+**P1 STATUS 2026-08-29: COMPLETE.** pps: 12 dup pairs resolved, coverage
+resurrected (Update email, wishlist-not-logged-in), fake-greens deleted,
+harness self-tests isolated serial. lcd: 4 fully-replaced base files →
+testIgnore, 4 config suites dropped. Data/locator audit BOTH shops: only 1
+byte-identical file existed (pps sidecart.data.json, deleted); everything
+else is load-bearing shop data — the analysis agents' "copies" claims did
+not survive diffing. skipBaseTests partial entries remain until P1b.
+Gate hardening en route: hash_exempt config (lock-file churn), tilde-cd fix,
+no-commit-repo hash fix. Eval 5 green.
+
 ## Phase 1b — Flatten the structure (unlocked by dropping OSS constraint)
 
 Goal: each shop's `tests/` is a plain, self-contained Playwright project. No nested git repos, no symlinks, no yarn-workspace gymnastics, no APP_NAME/TEST_BASE dispatcher.
@@ -167,6 +177,12 @@ Goal: failed → triage → fix → retest → until green.
   5. Cap: N iterations per failure (start N=3) → escalate to chatroom thread with trace + attempts.
 - Executor: claudeclaw/cron `claude --print` pattern (proven on PVC+LCD chatroom autonomy, PR #396 recipe). No agents near live — loop runs against dev/uat.
 - Prereqs: Phases 0–4 (esp. the failures.json contract and honest tests — a loop over tautological tests loops forever on lies).
+
+## Scope (Lucas, 2026-08-29, revised)
+
+Host session continues BOTH shops. lcd branch `e2e-final-gate-p0` carries the
+P0 work; `GITHUB_400` carries a WIP commit parking scheduled_tasks.lock churn.
+lcd fpm SIGSEGV debug still needs its own dedicated session (cores → host apport).
 
 ## Open decisions (need Lucas)
 

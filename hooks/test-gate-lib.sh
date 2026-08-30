@@ -27,6 +27,18 @@ tg_evidence_file() {
   echo "$gd/claude-test-gate/evidence.jsonl"
 }
 
+# Pathspec excludes for the state hash, from .claude/test-gate.json
+# "hash_exempt": ["<git glob>", ...] — for tracked files that churn
+# constantly without being code (cron lock files, generated timestamps).
+# Echoed one ':(exclude)glob' per line.
+tg_hash_excludes() {
+  local cfg="$1/.claude/test-gate.json"
+  [ -f "$cfg" ] || return 0
+  jq -r '(.hash_exempt // []) | .[]' "$cfg" 2>/dev/null | while IFS= read -r g; do
+    [ -n "$g" ] && printf ':(exclude)%s\n' "$g"
+  done
+}
+
 # Content hash of the current code state: HEAD sha + full working-tree diff
 # (staged AND unstaged) + sha1 of untracked non-ignored files. `git add` does
 # not change it; any file edit or new commit does — so passing evidence is
@@ -35,16 +47,73 @@ tg_state_hash() {
   local root="$1"
   (
     cd "$root" 2>/dev/null || exit 1
+    ex=()
+    while IFS= read -r e; do [ -n "$e" ] && ex+=("$e"); done <<EOF
+$(tg_hash_excludes "$root")
+EOF
     {
       git rev-parse HEAD 2>/dev/null || echo NOHEAD
-      git diff HEAD 2>/dev/null
+      git diff HEAD -- . "${ex[@]}" 2>/dev/null
       # `git diff HEAD` fails in a no-commit repo — --cached still sees staged
-      git diff --cached 2>/dev/null
-      git ls-files -o --exclude-standard 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
+      git diff --cached -- . "${ex[@]}" 2>/dev/null
+      git ls-files -o --exclude-standard -- . "${ex[@]}" 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
         [ -f "$f" ] && sha1sum -- "$f" 2>/dev/null
       done
     } | sha1sum | awk '{print $1}'
   )
+}
+
+# --- relevance: which tests cover a changed file -----------------------------
+
+# True when the path is itself a test file (test dir segment or test-suffixed
+# name). Keep in sync with the tg_test_files grep below.
+tg_is_test_path() {
+  case "$1" in
+    *Test.php|*.spec.js|*.spec.jsx|*.spec.ts|*.spec.tsx|*.spec.mjs|\
+    *.test.js|*.test.jsx|*.test.ts|*.test.tsx|*.test.mjs) return 0 ;;
+  esac
+  case "/$1" in
+    */Test/*|*/Tests/*|*/tests/*|*/test/*|*/__tests__/*) return 0 ;;
+  esac
+  return 1
+}
+
+# All test files in the repo (tracked + untracked non-ignored), one per line,
+# capped for perf. Echoes repo-relative paths.
+tg_test_files() {
+  local root="$1"
+  (
+    cd "$root" 2>/dev/null || exit 1
+    { git ls-files 2>/dev/null; git ls-files -o --exclude-standard 2>/dev/null; } \
+      | sort -u \
+      | grep -E '(^|/)(Test|Tests|tests|test|__tests__)/|Test\.php$|\.(spec|test)\.(js|jsx|ts|tsx|mjs)$' \
+      | head -5000
+  )
+}
+
+# Candidate tests covering ONE changed source file. Name-mapping first
+# (Foo.php -> FooTest.php; foo.ts -> foo.spec.ts / foo.test.ts / __tests__/foo.*),
+# then content grep: test files mentioning the stem as a whole word (catches
+# specs that exercise a class without the mapped filename). A changed test
+# file is its own candidate. $3 = pre-computed tg_test_files list (perf:
+# one repo scan per commit, not per file). Echoes repo-relative paths;
+# empty output = no test known to cover this file.
+tg_candidate_tests() {
+  local root="$1" f="$2" tests="$3" base stem esc out
+  if tg_is_test_path "$f"; then printf '%s\n' "$f"; return 0; fi
+  [ -z "$tests" ] && tests=$(tg_test_files "$root")
+  [ -z "$tests" ] && return 0
+  base="${f##*/}"; stem="${base%.*}"
+  [ -z "$stem" ] && return 0
+  esc=$(printf '%s' "$stem" | sed 's/[][\\.*^$()+?{}|]/\\&/g')
+  out=$(printf '%s\n' "$tests" \
+    | grep -E "(^|/)(${esc}Test\.php|${esc}\.(spec|test)\.[a-z]+)\$|(^|/)__tests__/${esc}\.[a-z]+\$" 2>/dev/null)
+  if [ -z "$out" ] && [ "${#stem}" -ge 3 ]; then
+    out=$(cd "$root" 2>/dev/null && printf '%s\n' "$tests" | head -2000 \
+      | tr '\n' '\0' | xargs -0 -r grep -lswF -- "$stem" 2>/dev/null | head -10)
+  fi
+  [ -n "$out" ] && printf '%s\n' "$out"
+  return 0
 }
 
 # --- test-runner detection ---------------------------------------------------

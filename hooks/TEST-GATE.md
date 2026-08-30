@@ -18,6 +18,7 @@ always-loaded context growth).
 | `hooks/test-evidence.sh` | PostToolUse Bash | records test runs (`exit_code` + state hash) and commit blessings |
 | `hooks/test-gate.sh` | PreToolUse Bash | blocks `git commit` / `git push` without passing evidence |
 | `scripts/changed-line-coverage.sh` | (called by gate) | opt-in hollow-test catcher via clover diff coverage |
+| `hooks/test-gate-relevance.test.sh` | (test suite) | scratch-repo suite for the relevance layer (11 cases) |
 
 ## How it decides
 
@@ -43,12 +44,32 @@ always-loaded context growth).
    to 3 dirs deep) ⇒ `e2e` — so a Magento project with both must show BOTH a
    passing phpunit run AND a passing (related-specs) playwright run; a phpunit
    pass alone no longer clears the gate. Override with `required_families` in
-   config. Docs/config-only commits pass untouched.
+   config. Docs/config-only commits pass untouched. A PURE test-file change
+   set (every gated file matches a test dir/name pattern) skips the gate
+   entirely, commit and push — tests need no tests. Mixed commits (code +
+   tests) are still fully gated.
 3. **Push**: outgoing range (`@{u}..HEAD` with fallbacks) is checked the same
    way; a HEAD blessed by a previously gated commit passes without a re-run
    (`test-evidence.sh` records `{"type":"commit","head":<sha>}` after each
    successful commit).
-4. **Arming**: gate is active only where test infrastructure exists
+4. **Relevance layer** (commit-time, ON by default): the family gate proves "a
+   suite passed"; this layer proves the suite was ABOUT the change. For every
+   changed code file it asks two questions:
+   - **Does a test exist for it?** Candidates are found by name-mapping
+     (`Model/Foo.php` → `**/FooTest.php`, `foo.ts` → `foo.spec.ts` /
+     `foo.test.ts` / `__tests__/foo.*`) with a content-grep fallback (test
+     files mentioning the stem as a whole word). A changed test file is its
+     own candidate. No candidate → **block**: the agent is told to write a
+     test first, or STOP and ask the user if the file is genuinely untestable.
+   - **Did it run?** The passing evidence run at the current state must have
+     executed a candidate: a broad whole-suite run (no test-file path /
+     `--filter` in the recorded cmd) covers everything; a targeted run counts
+     only for the candidates (or source stems) it names. Tests exist but
+     weren't run → **block**: run those tests, then retry.
+   Config: `"relevance": {"mode": "block"|"warn"|"off", "no_test_ok":
+   ["^app/design/"]}`. Env kill-switch (user-only, pre-session):
+   `CLAUDE_TEST_GATE_RELEVANCE=off|warn`.
+5. **Arming**: gate is active only where test infrastructure exists
    (`phpunit.xml*`, `vendor/bin/phpunit`, `dev/tests/`, playwright config,
    real `package.json` test script) or `.claude/test-gate.json` says
    `"enabled": true`. Skills/docs/shell repos are untouched.
@@ -62,6 +83,10 @@ always-loaded context growth).
   "required_families": ["unit", "e2e"],
   "code_patterns": ["\\.(php|phtml|js|ts)$"],
   "exempt_patterns": ["^docs/", "^Test/fixtures/"],
+  "relevance": {
+    "mode": "block",
+    "no_test_ok": ["^app/design/", "\\.phtml$"]
+  },
   "coverage": {
     "clover": "var/coverage/clover.xml",
     "min_pct": 60,
@@ -77,6 +102,15 @@ always-loaded context growth).
 - `required_families` — evidence families that must EACH have a passing run
   at the current state (`unit`, `e2e`). Omit for auto-detect; set `["unit"]`
   to opt a playwright-bearing project out of the e2e requirement.
+- `relevance` — per-change-set "does a test exist AND did it run" layer.
+  ON by default (`mode: block`); `warn` prints what would block, `off`
+  disables. `no_test_ok` = regex list of files allowed to commit without a
+  covering test (templates, generated code). Env kill-switch for the user:
+  `CLAUDE_TEST_GATE_RELEVANCE=off|warn` before starting claude.
+- `hash_exempt` — git pathspec globs excluded from the state hash (diff AND
+  untracked scan). For tracked files that churn without being code — cron lock
+  files, generated timestamps — which otherwise invalidate test evidence
+  minutes after every run. Code files must never be listed here.
 - `coverage` — opt-in changed-line coverage gate (commit-time, PHP only).
   Generate clover in the test run, e.g.
   `XDEBUG_MODE=coverage vendor/bin/phpunit -c dev/tests/unit/phpunit.xml --coverage-clover var/coverage/clover.xml`.
@@ -125,9 +159,18 @@ implementation HCF agent. When a project proves the loop works, promote to a
   failure. Claude normally runs runners bare; not defended v1.
 - `git -C <path>` commit/push resolves root from session cwd, not `-C` — a
   gated repo touched via `-C` from elsewhere may be mis-scoped.
-- Evidence is suite-agnostic: ANY passing run (e.g. one targeted spec) opens
-  the gate for the whole change set. The coverage layer exists precisely to
-  tighten this per project. Upgrade-verification rule still owns "which specs".
+- ~~Evidence is suite-agnostic: ANY passing run opens the gate for the whole
+  change set.~~ Narrowed 2026-08-29 by the relevance layer: a targeted run now
+  only clears the files whose candidates it names; every changed file needs a
+  discoverable test. Remaining softness: a BROAD suite run still clears any
+  file that has *some* candidate, and the content-grep candidate match is
+  heuristic (a test merely *mentioning* a class counts as covering it — the
+  coverage/mutation layers exist to tighten that). Upgrade-verification rule
+  still owns "which specs".
+- Relevance heuristics are name/word based: `.phtml` templates, layout XML-ish
+  JS, and files tested only indirectly will surface as "no test found" — that
+  is the intended push-back ("write one or ask the user"); per-project
+  `relevance.no_test_ok` patterns absorb legitimate cases.
 - The agent could hand-forge evidence JSONL; the block message forbids it and
   transcripts show it, but it is not cryptographically prevented.
 - Commits by the human outside Claude produce no blessing; a later Claude push
