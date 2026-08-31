@@ -81,13 +81,30 @@ FAMS=$(tg_test_families "$CMD")
 if [ -n "$FAMS" ]; then
   # non-zero only possible if a future harness adds the field — skip record
   [ "$EXIT_CODE" = "0" ] || exit 0
-  HASH=$(tg_state_hash "$ROOT")
-  [ -z "$HASH" ] && exit 0
-  for FAM in $FAMS; do
-    jq -cn --arg ts "$TS" --arg state "$HASH" --argjson ec "$EXIT_CODE" --arg cmd "$CMD" --arg fam "$FAM" \
-      '{type:"test", family:$fam, ts:$ts, state:$state, exit_code:$ec, cmd:$cmd}' >> "$EF" 2>/dev/null
-  done
-  trim_log
+  # A test repo nested inside a project repo (e.g. tests/m2-hyva-playwright with
+  # its own .git) validates the enclosing app too — record in both, each with
+  # its own state hash, or the parent's push gate never sees e2e evidence
+  # (chatroom thread e4bf2712: a leading `cd tests/...` resolved ROOT to the
+  # sub-repo and all evidence landed there, blinding the project gate).
+  ROOTS="$ROOT"
+  PARENT=$(cd "$ROOT/.." 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$PARENT" ] && [ "$PARENT" != "$ROOT" ]; then
+    ROOTS=$(printf '%s\n%s' "$ROOT" "$PARENT")
+  fi
+  while IFS= read -r R; do
+    [ -z "$R" ] && continue
+    EF=$(tg_evidence_file "$R") || continue
+    [ -z "$EF" ] && continue
+    HASH=$(tg_state_hash "$R")
+    [ -z "$HASH" ] && continue
+    for FAM in $FAMS; do
+      jq -cn --arg ts "$TS" --arg state "$HASH" --argjson ec "$EXIT_CODE" --arg cmd "$CMD" --arg fam "$FAM" \
+        '{type:"test", family:$fam, ts:$ts, state:$state, exit_code:$ec, cmd:$cmd}' >> "$EF" 2>/dev/null
+    done
+    trim_log
+  done <<ROOTS_EOF
+$ROOTS
+ROOTS_EOF
   exit 0
 fi
 
