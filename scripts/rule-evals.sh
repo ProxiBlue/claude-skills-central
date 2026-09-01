@@ -52,8 +52,18 @@ EVALDIR="$HOME/monitor/rule-evals"; mkdir -p "$EVALDIR"
 STAMP=$(date +%Y-%m-%d-%H%M)
 REPORT="$EVALDIR/evals-$STAMP.txt"
 WORK=$(mktemp -d /tmp/rule-evals.XXXXXX)
-CLAUDE_BIN="${CLAUDE_BIN:-claude}"
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
+# cron's minimal PATH lacks ~/.local/bin and nvm's node/npm; probes need both
+# (2026-09-01: npm-less PATH made eval 5's agent unable to satisfy the test gate)
+NVM_BIN=$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)
+export PATH="$HOME/.local/bin${NVM_BIN:+:$NVM_BIN}:$PATH"
 HARNESS_VER=$("$CLAUDE_BIN" --version 2>/dev/null | head -1)
+if [ -z "$HARNESS_VER" ]; then
+  # cron's minimal PATH bit us 2026-09-01: probes silently failed and produced a
+  # bogus 0/8 report. Unresolvable binary is its own hard error, not a rule failure.
+  echo "RULE EVALS $STAMP — HARD ERROR: harness binary unresolved (CLAUDE_BIN=$CLAUDE_BIN)" | tee "$REPORT" >&2
+  exit 3
+fi
 PASS=0; FAIL=0; RESULTS=""
 
 cleanup() { [ "$KEEP" = "1" ] || rm -rf "$WORK"; }
