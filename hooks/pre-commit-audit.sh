@@ -57,6 +57,22 @@ if [ -n "$STAGED_PHP" ] && [ -f vendor/bin/phpstan ]; then
     fi
 fi
 
+# Comment-noise scan: added inline comments that narrate the code instead of
+# stating a constraint (AI-generated "// call the helper" style). Only ADDED
+# lines, only // and # inline comments (docblocks untouched), narrow patterns
+# to keep false positives near zero. Blocking like the rest of the audit.
+STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null || true)
+if [ -n "$STAGED_CODE" ]; then
+    NOISE=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null | awk '
+        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules)\//); next }
+        /^\+/ && !skip {
+            line = substr($0, 2)
+            if (line ~ /(\/\/|#)[[:space:]]*([Cc]alls? the|[Ff]irst,|[Tt]hen,|[Nn]ow (we|call|check|create)|[Ll]oop (through|over)|[Ii]terate (through|over)|[Gg]et the|[Ss]et the|[Rr]eturn the|[Cc]reate a new|[Ii]nitiali[sz]e the|[Tt]his (fixes|ensures|change|will now)|[Cc]heck (if|that|whether) the|[Aa]dded (to|for|because)|[Mm]ake sure)/)
+                print file ": " line
+        }' | head -20)
+    [ -n "$NOISE" ] && ERRORS="${ERRORS}\n--- comment noise (narration comments: delete, or replace with the WHY-constraint the code cannot show) ---\n${NOISE}\n"
+fi
+
 if [ -n "$STAGED_XML" ] && command -v xmllint >/dev/null 2>&1; then
     for file in $STAGED_XML; do
         [ -f "$file" ] || continue
