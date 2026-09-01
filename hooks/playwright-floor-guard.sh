@@ -65,11 +65,14 @@ usage() {
 
 file_is_floor_domain() {
     local file="$1"
-    local title_line
+    local title_line basename_only
     title_line=$(head -1 "$file" 2>/dev/null || true)
+    basename_only=$(basename "$file")
 
-    # Backstop grep: title OR path matches floor-domain keyword (case-insensitive)
-    if printf '%s\n%s\n' "$file" "$title_line" | grep -Eqi "$FLOOR_DOMAINS_GREP_RE"; then
+    # Backstop grep: title OR filename (not full path — plan directory names
+    # like "vt-payment-links" would otherwise flag every file in the plan
+    # regardless of content) matches floor-domain keyword (case-insensitive)
+    if printf '%s\n%s\n' "$basename_only" "$title_line" | grep -Eqi "$FLOOR_DOMAINS_GREP_RE"; then
         return 0
     fi
 
@@ -79,6 +82,10 @@ file_is_floor_domain() {
     fi
 
     return 1
+}
+
+file_has_jsunit_bucket() {
+    grep -Fq "## Requirements — JS unit" "$1"
 }
 
 count_playwright_requirements() {
@@ -104,6 +111,17 @@ check_file() {
 
     if ! file_is_floor_domain "$file"; then
         # Not a floor-domain task — no floor enforced.
+        return 0
+    fi
+
+    if ! file_has_jsunit_bucket "$file"; then
+        # Backend-only Rule-3 task (schema, settle engine, webhook observer,
+        # cron, ...): never had a JS-unit bucket to migrate browser
+        # assertions out of, so the floor's failure mode (assertions
+        # migrated into JS-unit, browser coverage silently dropped) cannot
+        # apply. A worker that later deletes Playwright items while keeping
+        # the JS-unit bucket still trips this guard; full flatten to
+        # backend-only is caught by the pre-batch review agent, not here.
         return 0
     fi
 
