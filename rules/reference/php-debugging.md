@@ -23,6 +23,32 @@ The plugin is `xdebug@xdebug-mcp` (koriym/xdebug-mcp), seeded into every DDEV pr
 
 If the question doesn't fit any of those, fall back to reading the code — not to `var_dump`.
 
+## Availability — xdebug/pcov default OFF, load on demand (see xdebug-pcov-defaults.md)
+
+Fleet-wide, xdebug and pcov are NOT loaded by default in either PHP-FPM or PHP-CLI (FPM:
+crash risk under real request load; CLI: pure speed cost with no benefit). This is not a
+reason to fall back to echo-debugging — it self-heals depending on where the bug lives:
+
+- **CLI target** (phpunit, a script, a cron/queue worker invoked directly, any table above):
+  nothing to do. Every xdebug-mcp tool already checks whether xdebug is loaded and appends
+  `-dzend_extension=xdebug` to that one invocation if not — CLI is a fresh process per call,
+  zero restart cost. Just run the tool.
+- **FPM/live-request target** (a bug that only reproduces on an actual page load — e.g.
+  something a Playwright test is driving over nginx/FPM): FPM is a persistent daemon, so
+  loading xdebug there needs a real extension load + restart. You are running INSIDE the
+  container being debugged, with no `ddev` binary or Docker socket, so the host-only
+  `ddev xdebug on` will not work here. Use the in-container bracket instead — mounted
+  fleet-wide, read-only, at `.claude/scripts/xdebug-fpm-session.sh`:
+  ```
+  .claude/scripts/xdebug-fpm-session.sh on     # loads it, arms a 900s auto-off safety
+  # drive the page load, use xdebug-mcp tools against the DBGp connection on port 9003
+  .claude/scripts/xdebug-fpm-session.sh off    # turn it back off — do this before any
+                                                # real E2E/Playwright batch runs
+  ```
+  The auto-off timer self-heals even if you forget — but don't rely on it; leaving FPM
+  xdebug on into a real E2E batch is the exact condition that caused the original SIGSEGV
+  incident this default came from.
+
 ## Order of operations
 
 1. **State which xdebug tool fits the question** and why, in one line.

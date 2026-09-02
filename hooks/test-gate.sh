@@ -118,7 +118,14 @@ fi
 # --- arm check ---------------------------------------------------------------
 ENABLED=""
 if [ -f "$CFG" ]; then
-  ENABLED=$(jq -r '.enabled // empty' "$CFG" 2>/dev/null)
+  # NOT `.enabled // empty` — jq's `//` treats a real JSON `false` as falsy
+  # too (same as null/missing), so {"enabled": false} silently collapsed to
+  # empty and the documented config-bypass could never actually disable the
+  # gate. `.enabled` alone renders false/true as literal "false"/"true";
+  # only a genuinely missing key renders as the string "null", normalized
+  # below to empty so the auto-detect fallback below still applies to it.
+  ENABLED=$(jq -r '.enabled' "$CFG" 2>/dev/null)
+  [ "$ENABLED" = "null" ] && ENABLED=""
 fi
 if [ "$ENABLED" = "false" ]; then
   exit 0

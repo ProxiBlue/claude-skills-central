@@ -53,10 +53,38 @@ if echo "$NEW" | grep -qE "$PATTERN"; then
   echo "  is this line even reached?   -> xcoverage" >&2
   echo "  two inputs diverge where?    -> xcompare" >&2
   echo "" >&2
-  echo "Xdebug not loaded? 'ddev xdebug on' first. Tool genuinely can't" >&2
-  echo "reach the code path (cron/queue worker)? Say so to the user before" >&2
-  echo "falling back. Genuine production use of this function? Ask the user" >&2
-  echo "— they can add 'php-debug-guard' to .claude/rules-disable." >&2
+  echo "Xdebug/pcov default OFF fleet-wide in both FPM and CLI (see" >&2
+  echo "rules/reference/xdebug-pcov-defaults.md) — that is NOT a reason to" >&2
+  echo "fall back to var_dump/print_r. Load it on demand instead:" >&2
+  echo "" >&2
+  echo "  Bug is in a CLI script (phpunit, a cron/queue worker invoked" >&2
+  echo "  directly, any xdebug-mcp tool call)? Nothing to do — xtrace/" >&2
+  echo "  xstep/xprofile/xcoverage already self-heat (XdebugFinder in the" >&2
+  echo "  plugin auto-adds -dzend_extension=xdebug to that one invocation" >&2
+  echo "  when it's not loaded; CLI is a fresh process per call, zero" >&2
+  echo "  restart cost). Just run the tool." >&2
+  echo "" >&2
+  echo "  Bug only reproduces on a live page load (e.g. something a" >&2
+  echo "  Playwright test is driving, over FPM/nginx)? FPM is a persistent" >&2
+  echo "  daemon — loading xdebug there needs a real restart, and you are" >&2
+  echo "  running INSIDE this container with no 'ddev' binary or Docker" >&2
+  echo "  socket, so the host-only 'ddev xdebug on' will not work here." >&2
+  echo "  Use the in-container bracket instead (mounted fleet-wide," >&2
+  echo "  read-only, at .claude/scripts/):" >&2
+  echo "    .claude/scripts/xdebug-fpm-session.sh on   # loads it, arms a" >&2
+  echo "                                                # 900s auto-off safety" >&2
+  echo "    <drive the page load, use xdebug-mcp tools against the live" >&2
+  echo "     DBGp connection on port 9003>" >&2
+  echo "    .claude/scripts/xdebug-fpm-session.sh off  # turn it back off —" >&2
+  echo "                                                # do this before any" >&2
+  echo "                                                # real E2E/Playwright" >&2
+  echo "                                                # batch runs" >&2
+  echo "" >&2
+  echo "Tool genuinely can't reach the code path at all (e.g. an" >&2
+  echo "unattended cron/queue worker you cannot invoke interactively)?" >&2
+  echo "Say so to the user before falling back. Genuine production use of" >&2
+  echo "this function? Ask the user — they can add 'php-debug-guard' to" >&2
+  echo ".claude/rules-disable." >&2
   echo "Full reference: rules/reference/php-debugging.md (claude-skills-central)." >&2
   exit 2
 fi
