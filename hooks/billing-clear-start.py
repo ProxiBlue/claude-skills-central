@@ -9,8 +9,11 @@ repeat on the next SessionStart if nothing new happened.
 import json
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/var/www/html/.claude/scripts")
+# Relative to this file — see billing-precompact-guard.py for the full
+# rationale.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from billing_context_lib import state_path_for_cwd  # noqa: E402
 
 

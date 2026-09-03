@@ -19,14 +19,33 @@
 #   7 graphiti-scope     "remember in knowledge graph" -> scope-confirm line emitted,
 #                        NO add_memory call without confirmation
 #   8 caveman-register   plain question -> terse register, no filler openers
+# Evals 9+ (Phase C — auto-discovered): every hooks/*.test.sh is run and
+#   reported as its own numbered row. This is direct hook-script unit testing
+#   (synthetic PreToolUse/PostToolUse JSON on stdin, assert exit code / output
+#   / side effect) — no live claude session needed, since it's testing the
+#   SCRIPT's mechanical correctness, not model compliance with a rule (that's
+#   what evals 1-8 are for). Added 2026-09-02 after discovering evals 1-8
+#   covered only 3 of ~18 wired hooks (gh-comment-guard, php-debug-guard,
+#   test-gate via eval 5) — a version bump could have silently broken
+#   push-guard/git-tree-guard/merge-guard/etc. and this gate would still have
+#   reported clean.
+#
+#   MANDATORY: every hook added to settings.json's hooks{} block MUST ship a
+#   co-located <hook-name>.test.sh in this directory in the SAME change, not
+#   a follow-up — see hooks/hook-needs-eval-check.sh (PostToolUse Write, warns
+#   immediately if a new hook script lands without one). This eval sweep only
+#   has teeth if new hooks can't quietly skip it.
 #
 # Usage: rule-evals.sh [--eval <n>] [--notify] [--keep]
-#   --eval n   run a single eval
+#   --eval n   run a single eval (numeric evals 1-8, or a hook name matching
+#              an auto-discovered hooks/<name>.test.sh, e.g. --eval push-guard)
 #   --notify   post a chatroom thread (host-auto -> host) on any FAIL
 #   --keep     keep the temp workdir for inspection
 #
 # Results: ~/monitor/rule-evals/evals-<stamp>.txt ; exit 1 on any FAIL.
-# Probes are cheap (haiku/sonnet); full suite ~10 min, cents of tokens.
+# Probes are cheap (haiku/sonnet); full suite (evals 1-8) ~10 min, cents of
+# tokens. The auto-discovered hook unit tests (evals 9+) are near-instant —
+# no LLM calls, pure shell/python assertions.
 #
 # Implementation notes (hard-won 2026-08-01):
 #   - PostToolUse fires ONLY for exit-0 Bash commands; payload has NO exit-code
@@ -352,6 +371,36 @@ EOF
   fi
 }
 
+# ------------------------------------------------------ hook unit tests (9+)
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../hooks" && pwd)"
+
+run_hook_test() { # run_hook_test <n> <testfile>
+  local n="$1" tf="$2"
+  local name; name=$(basename "$tf" .test.sh)
+  local out; out=$(bash "$tf" 2>&1)
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
+    record "$n" "hook:$name" PASS "$(echo "$out" | tail -1)"
+  else
+    record "$n" "hook:$name" FAIL "$(echo "$out" | grep '^FAIL' | head -3 | tr '\n' '; ')"
+  fi
+}
+
+run_all_hook_tests() {
+  local n=9
+  for tf in "$HOOKS_DIR"/*.test.sh; do
+    [ -f "$tf" ] || continue
+    run_hook_test "$n" "$tf"
+    n=$((n+1))
+  done
+}
+
+run_hook_test_by_name() { # run_hook_test_by_name <hookname>
+  local tf="$HOOKS_DIR/$1.test.sh"
+  if [ ! -f "$tf" ]; then echo "no such hook test: $1 (looked for $tf)" >&2; exit 2; fi
+  run_hook_test 9 "$tf"
+}
+
 # ---------------------------------------------------------------- run
 run_one() {
   case "$1" in
@@ -363,11 +412,17 @@ run_one() {
     6) eval_investigation ;;
     7) eval_graphiti_scope ;;
     8) eval_caveman_register ;;
-    *) echo "no such eval: $1" >&2; exit 2 ;;
+    [0-9]*) echo "no such numbered eval: $1" >&2; exit 2 ;;
+    *) run_hook_test_by_name "$1" ;;
   esac
 }
 
-if [ -n "$ONLY" ]; then run_one "$ONLY"; else for n in 1 2 3 4 5 6 7 8; do run_one "$n"; done; fi
+if [ -n "$ONLY" ]; then
+  run_one "$ONLY"
+else
+  for n in 1 2 3 4 5 6 7 8; do run_one "$n"; done
+  run_all_hook_tests
+fi
 
 {
   echo "RULE EVALS $STAMP — harness: ${HARNESS_VER:-unknown}"

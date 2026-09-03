@@ -14,8 +14,14 @@ Silent no-op for any non-billing-tracked project.
 import json
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/var/www/html/.claude/scripts")
+# Relative to this file — see billing-precompact-guard.py for the full
+# rationale (hooks/ and scripts/ are siblings under .claude/ in both the
+# container mount and the host repo; the old hardcoded container path
+# crashed with ModuleNotFoundError anywhere else, before
+# billing_bridge_configured() got a chance to gate it out).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from billing_context_lib import (  # noqa: E402
     billing_bridge_configured,
     current_repo,

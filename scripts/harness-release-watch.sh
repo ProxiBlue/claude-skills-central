@@ -101,7 +101,8 @@ rm -f "$IMPACT_PROMPT"
 
 BODY=$(mktemp)
 {
-  echo "New claude-code release(s): $LAST -> $CUR (fleet pin: 2.1.198; host frozen)."
+  PIN=$(jq -r '.fleet_target // "unknown"' "$HOME/claude-skills-central/host/pin-decision.json" 2>/dev/null)
+  echo "New claude-code release(s): $LAST -> $CUR (fleet pin: $PIN; host frozen)."
   echo ""
   echo "TOOLING IMPACT (auto-summary):"
   echo "$IMPACT"

@@ -29,7 +29,7 @@ Install on the fresh machine:
 - **Node** (v22.x — matches v22.23.2) via nvm or nodesolid; needed for claude-code + rclone-independent tooling.
 - **CLI tools:** `git gh jq openssl curl python3 docker.io` — plus `xmllint` (libxml2-utils), `n98-magerun2` (Magento projects).
 - **rclone** (user-local): `curl -sSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /tmp/r.zip && unzip -o /tmp/r.zip -d /tmp && cp /tmp/rclone-*/rclone ~/.local/bin/ && chmod +x ~/.local/bin/rclone`
-- **claude-code, pinned:** `npm install -g @anthropic-ai/claude-code@2.1.201` (the fleet target from `host/pin-decision.json`; do NOT take latest — behaviour changes between versions break tuned config).
+- **claude-code, pinned:** native installer, not npm — `claude install <version>` (or the install script if `claude` itself isn't present yet: `curl -fsSL https://claude.ai/install.sh | bash -s <version>`). Read `host/pin-decision.json`'s `fleet_target` for the version to install; do NOT take latest — behaviour changes between versions break tuned config. Installs land in `~/.local/share/claude/versions/<version>/`, symlinked from `~/.local/bin/claude` — prior versions stay on disk, so rolling back is `ln -sf ~/.local/share/claude/versions/<prior-version> ~/.local/bin/claude`.
 
 ---
 
@@ -42,7 +42,7 @@ None of these are in git. Restore each from your password manager / provider.
 |---|---|---|
 | **`~/.ssh` private keys** | git push/pull, server access | `~/.ssh/` (chmod 600) |
 | **`GH_TOKEN`** | GitHub API (gh CLI) | shell env / `~/.bashrc` |
-| **graphiti-offsite passphrase** ⚠️ | **decrypts the B2 Graphiti backups** | `~/.config/graphiti-offsite-passphrase` (chmod 600) |
+| **graphiti-offsite passphrase** ⚠ | **decrypts the B2 Graphiti backups** | `~/.config/graphiti-offsite-passphrase` (chmod 600) |
 | **Backblaze B2 keyID + applicationKey** | pull backups from B2 | rclone `b2` remote (Phase 4) |
 | **`RESEND_API_KEY`** | monitor email alerts + booking-agent email | ai_assistant `.env` + read live by monitor |
 | **Anthropic API key** | Graphiti entity extraction (Haiku 4.5) | graphiti-mcp container env / infra `.env` |
