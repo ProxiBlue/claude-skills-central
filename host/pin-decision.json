@@ -1,9 +1,9 @@
 {
-  "fleet_target": "2.1.236",
-  "set_on": "2026-08-21",
+  "fleet_target": "2.1.258",
+  "set_on": "2026-09-02",
   "review_after_days": 21,
   "releases_behind_threshold": 20,
-  "note": "Stability posture: fleet deliberately trails upstream. Lag threshold 20 = fires only on genuinely large drift, not on a fresh deliberate hold. 2.1.201 = the eval-verified version.",
+  "note": "Stability posture: fleet deliberately trails upstream. Lag threshold 20 = fires only on genuinely large drift, not on a fresh deliberate hold. 2.1.258 = the eval-verified version.",
   "history": [
     {
       "version": "2.1.198",
@@ -19,6 +19,11 @@
       "version": "2.1.236",
       "set_on": "2026-08-21",
       "reason": "moved after rule-evals"
+    },
+    {
+      "version": "2.1.258",
+      "set_on": "2026-09-02",
+      "reason": "moved after rule-evals — 7/8 on first full run (eval 8 caveman-register, LLM-judge flake), reproduced pass on immediate single-eval retry, then confirmed with a second clean full 8/8 run before moving the pin"
     }
   ]
 }

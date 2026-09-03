@@ -1,5 +1,6 @@
 {
-  "model": "claude-opus-4-7",
+  "model": "claude-sonnet-5",
+  "outputStyle": "Concise",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
@@ -189,7 +190,8 @@
       "Bash(bin/magento app:config:dump)",
       "Bash(bin/magento db:query)"
     ],
-    "ask": []
+    "ask": [],
+    "defaultMode": "auto"
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
@@ -321,6 +323,15 @@
             "command": "bash /var/www/html/.claude/hooks/webfetch-completeness-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/destructive-sql-live-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -380,6 +391,16 @@
             "type": "command",
             "command": "bash /var/www/html/.claude/hooks/invisible-unicode-scrub.sh",
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/hook-needs-eval-check.sh",
+            "timeout": 10
           }
         ]
       },

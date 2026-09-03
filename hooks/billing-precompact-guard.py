@@ -19,8 +19,16 @@ Silent no-op for any non-billing-tracked project (no billing-bridge token).
 import json
 import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/var/www/html/.claude/scripts")
+# Relative to this file, not a hardcoded container path — hooks/ and scripts/
+# are siblings under .claude/ both in the container mount and on the host
+# (claude-skills-central/), so this resolves correctly in both. The old
+# hardcoded "/var/www/html/.claude/scripts" crashed with ModuleNotFoundError
+# outside a container running this exact mount layout, before
+# billing_bridge_configured() ever got a chance to gate it out — an
+# unconditional top-level import can't be gated after the fact.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from billing_context_lib import (  # noqa: E402
     billing_bridge_configured,
     current_repo,
