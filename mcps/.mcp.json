@@ -121,6 +121,14 @@
     "magento-standards": {
       "command": "/var/www/html/.claude/scripts/magento-standards-mcp.sh",
       "description": "Midhun-edv/magento-coding-standard-mcp \u2014 Magento 2 coding-standards rule engine (83+ rules, 150+ discouraged-function replacements, 50+ restricted-class migrations, 25+ jQuery deprecations, theme presets for Hyv\u00e4/Luma/Breeze/Porto). Tools: get_magento_pattern, validate_code, check_security, explain_rule, list_rules, get_rules_summary, manage_theme. Domain-generic (not tied to a project's installed code) \u2014 vendored once centrally under scripts/vendor/, no per-project install or gate needed. Consult before/while writing Magento PHP or theme code, and to validate a diff against Magento conventions (prefer over recalling rules from memory \u2014 this is authoritative and current). Complements hcf:standards-enforcer (which fixes/re-formats already-written code); this answers 'what's the compliant way to do X' up front. Vendored 2026-08-12, see ~/claude-skills-central/scripts/magento-standards-mcp.sh for update notes."
+    },
+    "buddy": {
+      "type": "http",
+      "url": "https://mcp.buddy.works/mcp?tools=pipelines",
+      "headers": {
+        "Authorization": "Bearer ${BUDDY_TOKEN}"
+      },
+      "description": "Buddy.works CI/CD \u2014 pipeline run status, run history, schedule config. Scoped to the pipelines tool category (90+ tools total on the unscoped endpoint); widen by editing the ?tools= query param here if more Buddy capability is needed later. US endpoint (mcp.buddy.works) \u2014 swap to mcp.eu.buddy.works or mcp.asia.buddy.works if the workspace lives in another region. Requires BUDDY_TOKEN in the container env (wired via each project's docker-compose.ai.mounts.yaml environment: block, sourced from the host's ~/.config/secrets.env). Backs the uat-deploy-verify skill's deploy-confirmation step."
     }
   }
 }
