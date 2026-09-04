@@ -33,7 +33,7 @@ turn red on a dead job — the dead-man switch, no watcher-of-watchers.
 | Component | What breaks if it breaks | Checklist state (2026-08-01) |
 |---|---|---|
 | claude-skills-central: rules/ + core-triggers | agent behaviour fleet-wide | wired ✓ (mount) · aligned ✓ · live-verified ✓ (/context pps) · kill: edit include/paths |
-| hooks: merge-guard, push-guard | branch topology on client repos | wired host+fleet ✓ · tested (in service since 2026-07) · kill: CLAUDE_*_ALLOWED=1 |
+| hooks: merge-guard, push-guard | branch topology on client repos | wired host+fleet ✓ · tested (in service since 2026-07) · kill: CLAUDE_*_ALLOWED=1 (live), single-use `.git/.claude-uat-push-authorized` marker written only by uat-deploy-verify skill (uat only, 2026-09-04) |
 | hooks: test-gate + test-evidence | commit/push without tests | wired ✓ · synthetic 40/40 + live-fired ✓ (2026-08-01, found+fixed payload bug) · kill: 3 documented · **pending: first real-Magento fire; 3 running containers stale until restart** |
 | hooks: gh-comment-guard, php-debug-guard | client-facing comment style; diff pollution | wired ✓ · synthetic+in-session fire ✓ · kill: rules-disable |
 | ~/claude-code-magento-agents | HCF review pipeline (10 phase-enrolled agents, 13 projects) | wired ✓ · git clean ✓ · NOT covered by inventory sweep until 2026-08-01 — now tracked |
