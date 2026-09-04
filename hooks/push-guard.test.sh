@@ -49,5 +49,40 @@ printf '{"tool_input":{"command":"CLAUDE_PUSH_ALLOWED=1 git push origin live"}}'
   | bash "$HOOK" >/dev/null 2>&1
 [ $? = 2 ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "FAIL (inline prefix must still block)"; }
 
+# --- uat marker bypass (uat-deploy-verify's single-use authorization) -------
+TMPREPO=$(mktemp -d)
+git -C "$TMPREPO" init -q
+
+# Valid, fresh marker → uat push allowed, marker consumed (deleted)
+date +%s > "$TMPREPO/.git/.claude-uat-push-authorized"
+( cd "$TMPREPO" && printf '{"tool_input":{"command":"git push origin uat"}}' | bash "$HOOK" >/dev/null 2>&1 )
+got=$?
+if [ "$got" = 0 ] && [ ! -f "$TMPREPO/.git/.claude-uat-push-authorized" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "FAIL (uat marker: valid marker should allow + self-delete, got exit $got)"
+fi
+
+# Marker already consumed → second uat push in a row is blocked again
+( cd "$TMPREPO" && printf '{"tool_input":{"command":"git push origin uat"}}' | bash "$HOOK" >/dev/null 2>&1 )
+[ $? = 2 ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "FAIL (uat marker: single-use — second push should block)"; }
+
+# Stale marker (> 10 min old) → blocked, and still consumed (deleted) on read
+STALE_TS=$(( $(date +%s) - 700 ))
+echo "$STALE_TS" > "$TMPREPO/.git/.claude-uat-push-authorized"
+( cd "$TMPREPO" && printf '{"tool_input":{"command":"git push origin uat"}}' | bash "$HOOK" >/dev/null 2>&1 )
+got=$?
+if [ "$got" = 2 ] && [ ! -f "$TMPREPO/.git/.claude-uat-push-authorized" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1)); echo "FAIL (uat marker: stale marker should block + still self-delete, got exit $got)"
+fi
+
+# A uat marker must NEVER authorize a live push
+date +%s > "$TMPREPO/.git/.claude-uat-push-authorized"
+( cd "$TMPREPO" && printf '{"tool_input":{"command":"git push origin live"}}' | bash "$HOOK" >/dev/null 2>&1 )
+[ $? = 2 ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "FAIL (uat marker must not authorize a live push)"; }
+rm -rf "$TMPREPO"
+
 echo "push-guard tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
