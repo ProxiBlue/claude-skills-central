@@ -179,12 +179,14 @@
       "Bash(rm -rf /var/www/html/pub/static/:*)",
       "Bash(rm -rf /var/www/html/generated/code/:*)",
       "Bash(rm -rf /var/www/html/generated/metadata/:*)",
+      "Bash(rm -rf /var/www/html/generated/:*)",
       "Bash(rm -rf var/cache/:*)",
       "Bash(rm -rf var/page_cache/:*)",
       "Bash(rm -rf var/view_preprocessed/:*)",
       "Bash(rm -rf pub/static/:*)",
       "Bash(rm -rf generated/code/:*)",
-      "Bash(rm -rf generated/metadata/:*)"
+      "Bash(rm -rf generated/metadata/:*)",
+      "Bash(rm -rf generated/:*)"
     ],
     "deny": [
       "Bash(bin/magento app:config:dump)",
@@ -274,6 +276,25 @@
           {
             "type": "command",
             "command": "bash /var/www/html/.claude/hooks/gh-comment-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/magento-generated-clear-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/magento-static-analysis-guard.sh",
+            "timeout": 60
           }
         ]
       },
