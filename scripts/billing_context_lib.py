@@ -144,7 +144,35 @@ def write_bridge_note(cwd: str, project_id: str, ticket_numbers: list[str], trig
         pass
 
 
+def _cwd_key(cwd: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "_", cwd.strip("/"))
+
+
 def state_path_for_cwd(cwd: str) -> Path:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    key = re.sub(r"[^A-Za-z0-9_-]", "_", cwd.strip("/"))
-    return STATE_DIR / f"{key}.json"
+    return STATE_DIR / f"{_cwd_key(cwd)}.json"
+
+
+def bypass_marker_path(cwd: str) -> Path:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    return STATE_DIR / f"{_cwd_key(cwd)}.bypass-once"
+
+
+def consume_bypass_once(cwd: str) -> bool:
+    """One-shot mid-session escape hatch for billing-precompact-guard's manual
+    /compact block. BILLING_COMPACT_ALLOWED=1 only works if set BEFORE the
+    session starts (env vars can't change mid-session) — too heavy for a
+    non-critical reminder gate you just want past right now. Create the
+    marker with `bash ~/claude-skills-central/scripts/billing-bypass-once.sh`
+    (or the project-mounted /var/www/html/.claude/scripts/ path) from inside
+    the blocked project; this consumes (deletes) it so the next real manual
+    compact is gated again — it's a "just this once" pass, not a standing
+    off switch. Silent no-op (never raises) if the marker isn't there."""
+    p = bypass_marker_path(cwd)
+    try:
+        if p.exists():
+            p.unlink()
+            return True
+    except Exception:
+        pass
+    return False

@@ -69,7 +69,41 @@ fi
 run_py "billing-clear-start.py" "{\"cwd\":\"$D\"}"
 [ -z "$OUT" ] && ok || bad "expected silent on 2nd clear-start (state already consumed), got: $OUT"
 
-rm -f /tmp/billing-test-err.txt
+# --- billing-bypass-once.sh one-shot marker (unit-level, doesn't need the
+#     /etc/billing-bridge/token gate — bypass_marker_path/consume_bypass_once
+#     are plain filesystem helpers) ------------------------------------------
+python3 -c "
+import sys
+sys.path.insert(0, '$HOME/claude-skills-central/scripts')
+from billing_context_lib import bypass_marker_path, consume_bypass_once
+
+cwd = '$D'
+assert not bypass_marker_path(cwd).exists(), 'marker should not pre-exist'
+assert consume_bypass_once(cwd) is False, 'consume on absent marker must return False'
+
+bypass_marker_path(cwd).touch()
+assert consume_bypass_once(cwd) is True, 'consume on present marker must return True'
+assert not bypass_marker_path(cwd).exists(), 'marker must be deleted after consuming (one-shot)'
+assert consume_bypass_once(cwd) is False, 'second consume must be False (already used)'
+print('OK')
+" > /tmp/billing-bypass-test.out 2>&1
+if grep -q "^OK$" /tmp/billing-bypass-test.out; then
+  ok
+else
+  bad "bypass-once marker round-trip failed: $(cat /tmp/billing-bypass-test.out)"
+fi
+
+# billing-bypass-once.sh itself creates the marker at the right path
+bash "$HOOKS_DIR/../scripts/billing-bypass-once.sh" "$D" >/dev/null 2>&1
+KEY2=$(python3 -c "import re,sys; print(re.sub(r'[^A-Za-z0-9_-]', '_', sys.argv[1].strip('/')))" "$D")
+if [ -f "$STATE_DIR/$KEY2.bypass-once" ]; then
+  ok
+  rm -f "$STATE_DIR/$KEY2.bypass-once"
+else
+  bad "billing-bypass-once.sh did not create marker at $STATE_DIR/$KEY2.bypass-once"
+fi
+
+rm -f /tmp/billing-test-err.txt /tmp/billing-bypass-test.out
 rm -rf "$D"
 
 echo "billing-context-guard tests: $PASS passed, $FAIL failed, $SKIP skipped"
