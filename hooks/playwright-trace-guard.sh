@@ -48,21 +48,64 @@ case "$FILE" in
   */node_modules/*) exit 0 ;;
 esac
 
-TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null)
+# Resolve from the EDITED FILE's own directory, not the hook's ambient cwd —
+# 2026-09-07 (pb-chatroom thread fa4f2504, pvcpipesupplies): a nested repo
+# (tests/m2-hyva-playwright, its own .git inside the outer project) meant
+# `git rev-parse --show-toplevel` from an arbitrary cwd could resolve either
+# root non-deterministically, so an outer-root rules-disable was silently
+# ignored and the trace search ran over whichever root the hook happened to
+# land in — not necessarily the one a human testing the same command by hand
+# would see either. Resolving from dirname("$FILE") makes it match "cd to
+# the file's directory and run git" exactly, every time.
+FILE_DIR=$(dirname "$FILE")
+# `git -C` requires the directory to actually exist — walk up to the
+# nearest existing ancestor (a brand-new file's parent dir may not exist
+# yet, e.g. a Write creating it for the first time).
+while [ ! -d "$FILE_DIR" ] && [ "$FILE_DIR" != "/" ] && [ "$FILE_DIR" != "." ]; do
+  FILE_DIR=$(dirname "$FILE_DIR")
+done
+TOPLEVEL=$(git -C "$FILE_DIR" rev-parse --show-toplevel 2>/dev/null)
 [ -z "$TOPLEVEL" ] && exit 0
 
-# Per-project opt-out
-if [ -f "$TOPLEVEL/.claude/rules-disable" ]; then
-  grep -qx 'playwright-trace-guard' "$TOPLEVEL/.claude/rules-disable" 2>/dev/null && exit 0
+# A nested repo's toplevel is NOT the outer project root — walk up once more
+# so an outer-root rules-disable (or an outer test-results/ tree) is honored
+# too, not just the nested repo's own.
+OUTER_TOPLEVEL=""
+PARENT_DIR=$(dirname "$TOPLEVEL")
+if [ "$PARENT_DIR" != "$TOPLEVEL" ]; then
+  OUTER_TOPLEVEL=$(git -C "$PARENT_DIR" rev-parse --show-toplevel 2>/dev/null)
+  [ "$OUTER_TOPLEVEL" = "$TOPLEVEL" ] && OUTER_TOPLEVEL=""
+fi
+
+# Per-project opt-out — either root
+tg__opted_out() {
+  [ -n "$1" ] && [ -f "$1/.claude/rules-disable" ] && grep -qx 'playwright-trace-guard' "$1/.claude/rules-disable" 2>/dev/null
+}
+if tg__opted_out "$TOPLEVEL" || tg__opted_out "$OUTER_TOPLEVEL"; then
+  exit 0
 fi
 
 command -v find >/dev/null 2>&1 || exit 0
 
-TRACE=$(find "$TOPLEVEL" -path '*/node_modules/*' -prune -o \
-  -name 'trace.zip' -newermt '-3 hours' -print 2>/dev/null | head -1)
+TRACE=""
+for root in "$TOPLEVEL" "$OUTER_TOPLEVEL"; do
+  [ -z "$root" ] && continue
+  TRACE=$(find "$root" -path '*/node_modules/*' -prune -o \
+    -name 'trace.zip' -newermt '-3 hours' -print 2>/dev/null | head -1)
+  [ -n "$TRACE" ] && break
+done
 [ -z "$TRACE" ] && exit 0
 
-MARKER="/tmp/claude-pw-trace-seen-$PPID"
+# Keyed on session_id, not $PPID — 2026-09-07 (same thread): the PreToolUse
+# hook process (this script) and the PostToolUse mark hook
+# (playwright-trace-mark.sh) get DIFFERENT $PPID values per invocation in
+# this harness, so a $PPID-keyed marker could never match between the two —
+# the documented "won't fire again this session" unlock structurally never
+# worked. session_id is stable across every hook invocation in one session
+# and present on every hook payload; fall back to $PPID only if it's
+# somehow missing (defensive, not the expected path).
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+MARKER="/tmp/claude-pw-trace-seen-${SESSION_ID:-$PPID}"
 if [ -f "$MARKER" ] && [ "$MARKER" -nt "$TRACE" ]; then
   exit 0
 fi

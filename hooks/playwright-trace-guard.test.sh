@@ -51,6 +51,50 @@ rm -f "/tmp/claude-pw-trace-seen-$$"
 touch -d '4 hours ago' "$D/test-results/some-test/trace.zip"
 t 0 "stale trace (>3h) allowed" "$D/tests/login.spec.ts"
 
+# --- 2026-09-07 fix: session_id-keyed marker survives different $PPID --------
+# The reported bug (pb-chatroom thread fa4f2504, pvcpipesupplies): guard.sh
+# (PreToolUse) and mark.sh (PostToolUse) run as genuinely different parent
+# processes in the real harness, so a $PPID-keyed marker never matched
+# between them — the documented "won't fire again this session" unlock
+# structurally never worked. Reproduce the actual failure mode by running
+# each hook through its own backgrounded subshell (each gets a $PPID
+# distinct from this script's and from each other's), sharing only
+# session_id — proves the fix survives the real process boundary, not just
+# a same-PID coincidence within one test script.
+MARK_HOOK="$(dirname "$HOOK")/playwright-trace-mark.sh"
+SESS="pw-sess-test-$$"
+rm -f "/tmp/claude-pw-trace-seen-$SESS"
+touch "$D/test-results/some-test/trace.zip"
+( printf '{"tool_input":{"command":"unzip -o trace.zip -d /tmp/pw"},"session_id":"%s"}' "$SESS" \
+    | bash "$MARK_HOOK" >/dev/null 2>&1 ) &
+wait $!
+if [ -f "/tmp/claude-pw-trace-seen-$SESS" ]; then
+  ok
+else
+  bad "session_id marker created by mark.sh" "file exists" "missing"
+fi
+( printf '{"tool_input":{"file_path":"%s/tests/login.spec.ts"},"session_id":"%s"}' "$D" "$SESS" \
+    | bash "$HOOK" >/dev/null 2>&1 )
+got=$?
+[ "$got" = 0 ] && ok || bad "session_id marker unlocks guard across the PreToolUse/PostToolUse boundary" 0 "$got"
+rm -f "/tmp/claude-pw-trace-seen-$SESS"
+
+# --- nested-repo TOPLEVEL resolution -----------------------------------------
+# Same thread: a nested repo (its own .git inside the outer project) must
+# resolve TOPLEVEL from the FILE's directory, and honor rules-disable from
+# EITHER the nested repo root or the outer project root.
+NESTED="$D/tests/m2-hyva-playwright"
+mkdir -p "$NESTED/specs"
+( cd "$NESTED" && git init -q . )
+touch "$NESTED/specs/trace.zip"
+t 2 "nested repo, fresh trace, blocked" "$NESTED/specs/login.spec.ts"
+mkdir -p "$NESTED/.claude" && echo playwright-trace-guard > "$NESTED/.claude/rules-disable"
+t 0 "nested repo's OWN rules-disable honored" "$NESTED/specs/login.spec.ts"
+rm -rf "$NESTED/.claude"
+mkdir -p "$D/.claude" && echo playwright-trace-guard > "$D/.claude/rules-disable"
+t 0 "OUTER project root's rules-disable also honored from inside nested repo" "$NESTED/specs/login.spec.ts"
+rm -rf "$D/.claude"
+
 cd /
 rm -rf "$D"
 

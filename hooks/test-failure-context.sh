@@ -49,8 +49,16 @@ OUT=$(echo "$INPUT" | jq -r '(.tool_response | if type == "object" then (.stdout
 
 echo "$OUT" | grep -qE '(FAILURES!|ERRORS!|Tests?[^a-zA-Z]*failed|[1-9][0-9]*[[:space:]]+failed|AssertionError|✘|✗)' || exit 0
 
-# Debounce: once per 10 min per claude process
-STAMP="/tmp/claude-invest-inject-$PPID"
+# Debounce: once per 10 min per session.
+# 2026-09-07: was keyed by $PPID, but $PPID is NOT stable across separate
+# invocations of this same PostToolUse hook in this harness version (see
+# pb-chatroom thread fa4f2504, pvcpipesupplies — same finding broke
+# playwright-trace-guard.sh/-mark.sh's cross-hook marker matching). A
+# per-invocation-unique $PPID meant this debounce's stamp check always
+# missed, so the protocol re-injected on every failing run within the
+# window instead of once. session_id is stable across a whole session.
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+STAMP="/tmp/claude-invest-inject-${SESSION_ID:-$PPID}"
 if [ -f "$STAMP" ]; then
   AGE=$(( $(date +%s) - $(stat -c %Y "$STAMP" 2>/dev/null || echo 0) ))
   [ "$AGE" -lt 600 ] && exit 0
