@@ -139,6 +139,11 @@ tg__segment_is_test() {
       [A-Za-z_]*=*) shift; continue ;;
     esac
     local base="${t##*/}"
+    # PHP test runners are commonly shipped/committed as a standalone .phar
+    # (invoked as `php dev/phpunit.phar ...`) — normalize before matching so
+    # phpunit.phar/paratest.phar/pest.phar/infection.phar are recognized the
+    # same as their non-phar form, not just the bare binary name.
+    case "$base" in *.phar) base="${base%.phar}" ;; esac
     case "$base" in
       phpunit|paratest|pest|infection|jest|vitest|pytest)
         echo unit; return 0 ;;

@@ -57,6 +57,32 @@ SECOND="$OUT"
 [ -n "$FIRST" ] && [ -z "$SECOND" ] && ok || bad "expected debounce to suppress 2nd injection (first=[${FIRST:0:20}] second=[${SECOND:0:20}])"
 
 rm -f "/tmp/claude-invest-inject-$$"
+
+# --- 2026-09-07 fix: debounce keyed on session_id, survives different $PPID --
+# The reported bug (pb-chatroom thread fa4f2504, pvcpipesupplies): $PPID is
+# NOT stable across separate invocations of the same PostToolUse hook in
+# this harness, so the old $PPID-keyed debounce stamp from one invocation
+# was never found by the next — it never actually debounced. Reproduce the
+# real failure mode via two independent backgrounded subshells (each gets
+# its own $PPID) sharing only session_id.
+SESS="tfc-sess-test-$$"
+rm -f "/tmp/claude-invest-inject-$SESS"
+run_sess() { # run_sess <command> <stdout>
+  ( printf '{"tool_input":{"command":%s},"tool_response":{"stdout":%s},"cwd":%s,"session_id":"%s"}' \
+      "$(printf '%s' "$1" | jq -Rs .)" "$(printf '%s' "$2" | jq -Rs .)" "$(printf '%s' "$D" | jq -Rs .)" "$SESS" \
+      | bash "$HOOK" > "$TMPOUT" 2>/dev/null ) &
+  wait $!
+  OUT=$(cat "$TMPOUT")
+}
+run_sess 'vendor/bin/phpunit' 'FAILURES!
+Failures: 1.'
+FIRST="$OUT"
+run_sess 'vendor/bin/phpunit' 'FAILURES!
+Failures: 1.'
+SECOND="$OUT"
+[ -n "$FIRST" ] && [ -z "$SECOND" ] && ok || bad "expected session_id debounce to survive different \$PPID across invocations (first=[${FIRST:0:20}] second=[${SECOND:0:20}])"
+rm -f "/tmp/claude-invest-inject-$SESS"
+
 rm -f "$TMPOUT"
 cd /
 rm -rf "$D"

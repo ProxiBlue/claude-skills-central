@@ -1,7 +1,8 @@
 #!/bin/bash
 # PreToolUse hook: audit staged files before `git commit`.
 # Runs phpcs (Magento2 for app/code/, PSR12 elsewhere), phpstan if configured,
-# and xmllint on staged XML. Silent unless issues are found.
+# xmllint on staged XML, a comment-noise scan, and a duplicate-block scan.
+# Silent unless issues are found.
 
 set -euo pipefail
 
@@ -20,10 +21,15 @@ cd "$PROJECT_ROOT"
 
 STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' 2>/dev/null || true)
 STAGED_XML=$(git diff --cached --name-only --diff-filter=ACMR -- '*.xml' 2>/dev/null || true)
+STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null || true)
 
-[ -z "$STAGED_PHP" ] && [ -z "$STAGED_XML" ] && exit 0
+# NOTE: must include STAGED_CODE here — a commit touching only .js/.ts files
+# has empty STAGED_PHP/STAGED_XML but still needs the comment-noise and
+# duplicate-block scans below to run.
+[ -z "$STAGED_PHP" ] && [ -z "$STAGED_XML" ] && [ -z "$STAGED_CODE" ] && exit 0
 
 ERRORS=""
+WARNINGS=""
 
 if [ -n "$STAGED_PHP" ] && [ -f vendor/bin/phpcs ]; then
     for file in $STAGED_PHP; do
@@ -61,7 +67,6 @@ fi
 # stating a constraint (AI-generated "// call the helper" style). Only ADDED
 # lines, only // and # inline comments (docblocks untouched), narrow patterns
 # to keep false positives near zero. Blocking like the rest of the audit.
-STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null || true)
 if [ -n "$STAGED_CODE" ]; then
     NOISE=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null | awk '
         /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules)\//); next }
@@ -73,12 +78,58 @@ if [ -n "$STAGED_CODE" ]; then
     [ -n "$NOISE" ] && ERRORS="${ERRORS}\n--- comment noise (narration comments: delete, or replace with the WHY-constraint the code cannot show) ---\n${NOISE}\n"
 fi
 
+# Duplicate-block scan: six-plus consecutive ADDED lines (trivial/short lines
+# filtered out) that repeat elsewhere in this same staged diff, same file or
+# across files. Usually means copy-paste where a shared helper belonged.
+# Advisory, not blocking — unlike phpcs/phpstan (compiler-verified) or the
+# narration regex (near-zero false-positive phrases), literal-repeat is a
+# fuzzy signal: legitimate near-duplicate scaffolding (parallel test cases,
+# config arrays) can trip it. A gate that cries wolf gets ignored, so this
+# one reports and lets the commit through; promote to blocking later only if
+# it proves clean in practice.
+if [ -n "$STAGED_CODE" ]; then
+    DUPES=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null | awk -v W=6 -v MINLEN=6 -v CAP=10 '
+        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules)\//); next }
+        /^\+/ && !skip {
+            line = substr($0, 2)
+            gsub(/^[ \t]+|[ \t]+$/, "", line)
+            gsub(/[ \t]+/, " ", line)
+            if (length(line) < MINLEN) next
+            cnt++
+            content[cnt] = line
+            fname[cnt] = file
+        }
+        END {
+            reports = 0
+            for (i = 1; i + W - 1 <= cnt; i++) {
+                if (fname[i] != fname[i+W-1]) continue
+                key = ""
+                for (j = 0; j < W; j++) key = key content[i+j] "\001"
+                if (key in firstfile) {
+                    if (!(key in reported)) {
+                        reported[key] = 1
+                        print fname[i] " (matches earlier addition in " firstfile[key] "): " content[i]
+                        reports++
+                        if (reports >= CAP) exit
+                    }
+                } else {
+                    firstfile[key] = fname[i]
+                }
+            }
+        }')
+    [ -n "$DUPES" ] && WARNINGS="${WARNINGS}\n--- possible duplicate blocks (6+ line literal repeat added in this commit — consider extracting a shared helper) ---\n${DUPES}\n"
+fi
+
 if [ -n "$STAGED_XML" ] && command -v xmllint >/dev/null 2>&1; then
     for file in $STAGED_XML; do
         [ -f "$file" ] || continue
         RESULT=$(xmllint --noout "$file" 2>&1) || true
         [ -n "$RESULT" ] && ERRORS="${ERRORS}\n--- xmllint: $file ---\n${RESULT}\n"
     done
+fi
+
+if [ -n "$WARNINGS" ]; then
+    echo -e "Pre-commit audit — advisory (not blocking):\n${WARNINGS}" >&2
 fi
 
 if [ -n "$ERRORS" ]; then

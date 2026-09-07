@@ -98,6 +98,78 @@ else
   skip "vendor/bin/phpcs present in this cwd — clean-PHP-no-tooling case not applicable"
 fi
 
+# --- blocked: narration-comment noise in a JS-only commit (regression test —
+# the early-exit used to check only STAGED_PHP/STAGED_XML, so a commit
+# touching only .js/.ts files skipped every scan below it) ---------------------
+cat > widget.js <<'EOF'
+function total(items) {
+    // Loop through items and sum them
+    return items.reduce((a, b) => a + b, 0);
+}
+EOF
+git add widget.js
+run 'git commit -m "feat: add widget total"'
+if [ "$RC" = 2 ] && grep -q "comment noise" /tmp/pca-out.txt; then ok; else bad "expected block on narration comment in JS-only commit, got $RC: $(cat /tmp/pca-out.txt)"; fi
+git reset -q widget.js; rm -f widget.js
+
+# --- advisory, not blocking: duplicate 6+ line block added across two files ----
+cat > c.php <<'EOF'
+<?php
+class Foo {
+    public function foo() {
+        $result = validateInput($data);
+        if (!$result) {
+            throw new Exception("bad input");
+        }
+        $normalized = normalizeInput($data);
+        $logged = logAttempt($normalized);
+        return $normalized;
+    }
+}
+EOF
+cat > d.php <<'EOF'
+<?php
+class Bar {
+    public function bar() {
+        $result = validateInput($data);
+        if (!$result) {
+            throw new Exception("bad input");
+        }
+        $normalized = normalizeInput($data);
+        $logged = logAttempt($normalized);
+        return $normalized;
+    }
+}
+EOF
+git add c.php d.php
+run 'git commit -m "feat: add foo and bar"'
+if [ "$RC" = 0 ] && grep -q "duplicate blocks" /tmp/pca-out.txt; then ok; else bad "expected exit 0 + duplicate-block warning, got $RC: $(cat /tmp/pca-out.txt)"; fi
+git reset -q c.php d.php; rm -f c.php d.php
+
+# --- silent: near-duplicate under the 6-line threshold doesn't warn ------------
+cat > e.php <<'EOF'
+<?php
+class Baz {
+    public function baz() {
+        $result = validateInput($data);
+        return $result;
+    }
+}
+EOF
+cat > f.php <<'EOF'
+<?php
+class Qux {
+    public function qux() {
+        $result = validateInput($data);
+        return $result;
+    }
+}
+EOF
+git add e.php f.php
+run 'git commit -m "feat: add baz and qux"'
+if [ "$RC" = 0 ] && ! grep -q "duplicate blocks" /tmp/pca-out.txt; then ok; else bad "expected silent pass under 6-line threshold, got $RC: $(cat /tmp/pca-out.txt)"; fi
+git reset -q e.php f.php; rm -f e.php f.php
+
 cd /
 rm -rf "$D" /tmp/pca-out.txt
 

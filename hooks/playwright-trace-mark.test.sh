@@ -47,5 +47,13 @@ run 'ls -la'
 
 rm -f "$MARKER"
 
+# --- 2026-09-07 fix: session_id takes priority over $PPID ---------------------
+SESS="pw-mark-sess-test-$$"
+SESS_MARKER="/tmp/claude-pw-trace-seen-$SESS"
+rm -f "$SESS_MARKER"
+printf '{"tool_input":{"command":"unzip -o trace.zip -d /tmp/pw"},"session_id":"%s"}' "$SESS" | bash "$HOOK" >/dev/null 2>&1
+[ -f "$SESS_MARKER" ] && ok || bad "expected session_id-keyed marker, not \$PPID-keyed"
+rm -f "$SESS_MARKER"
+
 echo "playwright-trace-mark tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
