@@ -1,5 +1,8 @@
 *.bak*
 *~
+__pycache__/
+*.pyc
+scripts/bin/
 .mcp.json.bak*
 # (removed dead dir entry)
 infra/do-bugsink/.bugsink-secret
