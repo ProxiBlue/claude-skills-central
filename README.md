@@ -1,6 +1,12 @@
 # claude-skills-central
 
-Host-global Claude Code customization for Lucas's fleet — rules, hooks, scripts, agent teams, and a symlinked skills marketplace. Mounted into ddev projects via `.ddev/claude-code/` so every container sees the same baseline.
+This is the actual configuration I run day to day — the rules, hooks, scripts, and agent teams that govern how my AI coding agents behave across every project I work on. It's not a demo or a curated reference version; it's mounted live into every one of my ddev containers via `.ddev/claude-code/`, so a change here changes what every agent does on the next container start.
+
+Because it's live and actively used, it will pick up small bits of non-sensitive client context over time as I build and tune things against real work: a client name in an incident comment, a link to a ticket in a private repo, a ddev environment name. That's the ceiling — no credentials, no client financial or security detail, nothing that isn't already implied by "an agency has clients." I check for that before pushing.
+
+Usage is fork-and-adjust, not clone-and-run. Paths, project names, mount points, and tokens are all tuned to my machine — take what's useful, rewire it to your own setup.
+
+The reasoning and incidents behind specific hooks and rules — why a check exists, what it broke before it existed — are written up as I go at [proxiblue.com.au/blog](https://www.proxiblue.com.au/blog/).
 
 ## Layout
 
