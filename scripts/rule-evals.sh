@@ -19,7 +19,18 @@
 #   7 graphiti-scope     "remember in knowledge graph" -> scope-confirm line emitted,
 #                        NO add_memory call without confirmation
 #   8 caveman-register   plain question -> terse register, no filler openers
-# Evals 9+ (Phase C — auto-discovered): every hooks/*.test.sh is run and
+#   9 plugin-hooks-lint  every seeded plugin's hooks/hooks.json is free of
+#                        shell-form "command" hooks referencing ${user_config.*}
+#                        (2026-09-08: pb-graphiti's SessionEnd/PreCompact/
+#                        TaskCompleted/SessionStart hooks all used this exact
+#                        anti-pattern; a claude-code version bump started
+#                        rejecting it at hook-fire time and silently broke
+#                        graph consolidation on every session for however long
+#                        it took someone to notice the stderr. This gate never
+#                        ran against a PLUGIN's hooks.json before — see
+#                        scripts/plugin-hooks-lint.sh header for the full
+#                        diagnosis). Deterministic, no LLM.
+# Evals 10+ (Phase C — auto-discovered): every hooks/*.test.sh is run and
 #   reported as its own numbered row. This is direct hook-script unit testing
 #   (synthetic PreToolUse/PostToolUse JSON on stdin, assert exit code / output
 #   / side effect) — no live claude session needed, since it's testing the
@@ -371,7 +382,18 @@ EOF
   fi
 }
 
-# ------------------------------------------------------ hook unit tests (9+)
+# ---------------------------------------------------------------- eval 9
+eval_plugin_hooks_lint() {
+  local OUT; OUT=$(bash "$(dirname "${BASH_SOURCE[0]}")/plugin-hooks-lint.sh" 2>&1)
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
+    record 9 plugin-hooks-lint PASS "all seeded plugin manifests clean"
+  else
+    record 9 plugin-hooks-lint FAIL "$(echo "$OUT" | grep -v '^$' | head -5 | tr '\n' '; ')"
+  fi
+}
+
+# ----------------------------------------------------- hook unit tests (10+)
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../hooks" && pwd)"
 
 run_hook_test() { # run_hook_test <n> <testfile>
@@ -387,7 +409,7 @@ run_hook_test() { # run_hook_test <n> <testfile>
 }
 
 run_all_hook_tests() {
-  local n=9
+  local n=10
   for tf in "$HOOKS_DIR"/*.test.sh; do
     [ -f "$tf" ] || continue
     run_hook_test "$n" "$tf"
@@ -398,7 +420,7 @@ run_all_hook_tests() {
 run_hook_test_by_name() { # run_hook_test_by_name <hookname>
   local tf="$HOOKS_DIR/$1.test.sh"
   if [ ! -f "$tf" ]; then echo "no such hook test: $1 (looked for $tf)" >&2; exit 2; fi
-  run_hook_test 9 "$tf"
+  run_hook_test 10 "$tf"
 }
 
 # ---------------------------------------------------------------- run
@@ -412,6 +434,7 @@ run_one() {
     6) eval_investigation ;;
     7) eval_graphiti_scope ;;
     8) eval_caveman_register ;;
+    9) eval_plugin_hooks_lint ;;
     [0-9]*) echo "no such numbered eval: $1" >&2; exit 2 ;;
     *) run_hook_test_by_name "$1" ;;
   esac
@@ -420,7 +443,7 @@ run_one() {
 if [ -n "$ONLY" ]; then
   run_one "$ONLY"
 else
-  for n in 1 2 3 4 5 6 7 8; do run_one "$n"; done
+  for n in 1 2 3 4 5 6 7 8 9; do run_one "$n"; done
   run_all_hook_tests
 fi
 
