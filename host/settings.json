@@ -68,6 +68,15 @@
         ]
       },
       {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/gate-config-guard.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
