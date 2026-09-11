@@ -60,6 +60,16 @@ if [ -z "$proj" ]; then
 fi
 [ -z "$proj" ] && proj="claude"
 
+# Branch: cheap lookup off the same cwd, so worktrees on different branches
+# (multi-ddev-instance-per-ticket workflow) are distinguishable in the window
+# list without opening the pane.
+branch=""
+d="$cwd"; [ -z "$d" ] && d="$ws_cwd"; [ -z "$d" ] && d="$PWD"
+if [ -n "$d" ] && [ -d "$d" ]; then
+  branch=$(cd "$d" 2>/dev/null && { git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null; })
+fi
+[ -n "$branch" ] && proj="$proj:$branch"
+
 round() { # -> ROUND_OUT integer, or empty if not numeric
   ROUND_OUT=""
   [[ $1 =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && printf -v ROUND_OUT '%.0f' "$1"
