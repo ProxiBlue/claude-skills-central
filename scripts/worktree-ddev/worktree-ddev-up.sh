@@ -62,15 +62,22 @@ else
 fi
 
 echo "worktree-ddev: configuring ddev project '$new_project'"
-(cd "$worktree_dir" && ddev config --project-name="$new_project" >/dev/null)
-# .ddev/config.yaml is normally tracked (its "name:" field now differs from the
-# source branch's copy) -- mark it skip-worktree in THIS worktree's index only,
-# so it never shows dirty and never gets accidentally committed onto the
-# ticket branch. Each linked worktree has its own index, so this is local to
-# this checkout and does not affect the source repo or other worktrees.
-if git -C "$worktree_dir" ls-files --error-unmatch .ddev/config.yaml >/dev/null 2>&1; then
-  git -C "$worktree_dir" update-index --skip-worktree .ddev/config.yaml
-fi
+# Do NOT use `ddev config --project-name=` here -- it rewrites the TRACKED
+# .ddev/config.yaml, and `update-index --skip-worktree` to hide that from git
+# is NOT reliable protection: a later merge or branch checkout run inside
+# this same worktree (e.g. merging the finished ticket into uat/live from
+# here instead of from trunk) can silently overwrite the file back to
+# whatever the new branch tracks, snapping the project name back to the
+# TRUNK's name. Found 2026-09-12 (#462) -- ddev then refuses to
+# restart/reconfigure ("a project already exists ... created at <trunk
+# path>"), and `ddev claude`/exec behavior in that state is unreliable.
+# ddev's own config.local.yaml is the robust mechanism: untracked (already in
+# .ddev/.gitignore by ddev's own convention), never touched by any git
+# operation, and overlaid on top of config.yaml automatically.
+mkdir -p "$worktree_dir/.ddev"
+cat > "$worktree_dir/.ddev/config.local.yaml" <<EOF
+name: ${new_project}
+EOF
 
 # A linked worktree's .git is just a pointer file --
 # "gitdir: <repo>/.git/worktrees/<name>" -- to the TRUNK repo's git dir on
@@ -78,6 +85,15 @@ fi
 # every git command inside the container (status/diff/commit) fails with
 # "not a git repository": the path the pointer names doesn't exist in there.
 # Mount the trunk's .git at the identical absolute host path so it resolves.
+#
+# extra_hosts: *.ddev.site DNS resolution INSIDE a ddev container is not
+# reliable -- it can resolve to 127.0.0.1 (correct, direct to this
+# container's own nginx) or to ddev-router's actual container IP on the
+# shared docker network (wrong -- the router only has this project's vhost
+# registered on its external/host-facing port, so anything hitting it
+# on-network gets a router-level 404 that never reaches the app at all).
+# Observed non-deterministically across restarts 2026-09-12 (#462) -- static
+# extra_hosts removes the DNS lookup entirely, so it can't flip.
 cat > "$worktree_dir/.ddev/docker-compose.git-worktree.yaml" <<EOF
 services:
   web:
@@ -85,6 +101,13 @@ services:
       - "${repo}/.git:${repo}/.git"
     environment:
       - CURRENT_TICKET=${ticket_id}
+      # DDEV_PROJECT here is ticket-suffixed (e.g. pvcpipesupplies-465), but
+      # the graphiti knowledge graph must stay unified under the trunk's real
+      # project name -- see ~/claude-skills-central/rules/graphiti-usage.md.
+      - GRAPHITI_GROUP_ID=${src_project}
+    extra_hosts:
+      - "${new_project}.ddev.site:127.0.0.1"
+      - "novarnish.${new_project}.ddev.site:127.0.0.1"
 EOF
 
 echo "worktree-ddev: starting $new_project"
