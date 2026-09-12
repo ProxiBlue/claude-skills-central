@@ -110,6 +110,18 @@ services:
       - "novarnish.${new_project}.ddev.site:127.0.0.1"
 EOF
 
+# Fix at the source rather than reactively: .ddev/claude-code/.claude/ is
+# gitignored, so it doesn't exist yet in a fresh worktree -- whichever
+# container-init step creates it first "wins" ownership, and some root-context
+# step beats the ddev-user post-start hooks to it, leaving it root-owned and
+# silently breaking every hook that writes there (OAuth credential
+# persistence, plugin-marketplace sync, etc.) with no visible error. Since
+# the host user's uid matches the container user's uid 1:1 (ddev convention),
+# pre-creating it from the HOST before `ddev start` ever runs means it
+# already exists with correct ownership when the container starts, so
+# nothing else ever gets the chance to create-and-own it wrong.
+mkdir -p "$worktree_dir/.ddev/claude-code/.claude"
+
 echo "worktree-ddev: starting $new_project"
 (cd "$worktree_dir" && ddev start)
 
