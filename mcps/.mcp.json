@@ -129,6 +129,11 @@
         "Authorization": "Bearer ${BUDDY_TOKEN}"
       },
       "description": "Buddy.works CI/CD \u2014 pipeline run status, run history, schedule config. Scoped to the pipelines tool category (90+ tools total on the unscoped endpoint); widen by editing the ?tools= query param here if more Buddy capability is needed later. US endpoint (mcp.buddy.works) \u2014 swap to mcp.eu.buddy.works or mcp.asia.buddy.works if the workspace lives in another region. Requires BUDDY_TOKEN in the container env (wired via each project's docker-compose.ai.mounts.yaml environment: block, sourced from the host's ~/.config/secrets.env). Backs the uat-deploy-verify skill's deploy-confirmation step."
+    },
+    "xdebug": {
+      "command": "php",
+      "args": ["/home/lucas/.composer/vendor/bin/xdebug-mcp"],
+      "description": "koriym/xdebug-mcp PHP debugging/profiling server (xtrace, xstep, xprofile, xcoverage, xback). The xdebug-mcp plugin/skill was already seeded fleet-wide via known_marketplaces.json, but that only registers the marketplace + skill (CLI usage) -- the actual MCP server mode needs this separate declaration plus a one-time `composer global require koriym/xdebug-mcp` per project (binary path is user-home-relative, portable everywhere once installed). Found missing 2026-09-12 on pvcpipesupplies after a long chase assuming it was an MCP-tool availability bug; it was never wired up anywhere, pps included. Run the global require on any other project hitting the same gap."
     }
   }
 }
