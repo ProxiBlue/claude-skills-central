@@ -122,6 +122,8 @@ EOF
 # nothing else ever gets the chance to create-and-own it wrong.
 mkdir -p "$worktree_dir/.ddev/claude-code/.claude"
 
+wtd_provision_worktree "$repo" "$worktree_dir" "$branch" "$new_project"
+
 echo "worktree-ddev: starting $new_project"
 (cd "$worktree_dir" && ddev start)
 

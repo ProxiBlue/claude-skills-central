@@ -4,7 +4,12 @@
 # docker, boots bugsink behind caddy (auto-TLS), and enables unattended
 # security upgrades. Nothing to run by hand on the server.
 #
-# Droplet: Basic 1vCPU/1GB, Ubuntu 24.04 LTS. DNS: errors.proxiblue.com.au -> droplet IP.
+# Droplet: Basic 1vCPU/1GB, Ubuntu 24.04 LTS. DNS: bugsink.proxiblue.com.au -> droplet IP.
+# NOTE 2026-09-19: the live hostname is bugsink.proxiblue.com.au. It was
+# originally deployed as errors.proxiblue.com.au and renamed; the old name still
+# has an A record to this same droplet but no cert, so it fails the TLS handshake
+# (curl exit 35). Do not reintroduce it -- a stale copy in pvcpipesupplies
+# .claude/wires.json blocked every pb-hcf pre-flight until 2026-09-19.
 
 package_update: true
 packages:
@@ -18,10 +23,12 @@ write_files:
           image: bugsink/bugsink:latest
           restart: always
           environment:
-            SECRET_KEY: "REDACTED-ROTATED-SECRET-KEY"
-            CREATE_SUPERUSER: "lucas@proxiblue.com.au:REDACTED-ROTATED-PASSWORD"
+            # Secrets are substituted by docker compose from /opt/bugsink/.env,
+            # which is created out-of-band and never committed. See README.md.
+            SECRET_KEY: "${BUGSINK_SECRET_KEY:?create /opt/bugsink/.env first}"
+            CREATE_SUPERUSER: "${BUGSINK_SUPERUSER:?create /opt/bugsink/.env first}"
             PORT: "8000"
-            BASE_URL: "https://errors.proxiblue.com.au"
+            BASE_URL: "https://bugsink.proxiblue.com.au"
             BEHIND_HTTPS_PROXY: "true"
           volumes:
             - bugsink_data:/data
@@ -43,7 +50,7 @@ write_files:
         caddy_config:
   - path: /opt/bugsink/Caddyfile
     content: |
-      errors.proxiblue.com.au {
+      bugsink.proxiblue.com.au {
           reverse_proxy bugsink:8000
       }
 
