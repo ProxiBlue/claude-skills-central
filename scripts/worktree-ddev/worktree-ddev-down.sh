@@ -50,6 +50,37 @@ fi
 echo "worktree-ddev: deleting ddev project $PROJECT_NAME"
 ddev delete -Oy "$PROJECT_NAME" 2>&1 | grep -v '^$' || true
 
+# Nested repo worktrees (test harnesses) live INSIDE $WORKTREE_DIR and must
+# come out first.
+#
+# Note git does NOT protect you here (verified 2026-09-18): `git worktree
+# remove` on the parent does not refuse just because another repo's checkout
+# sits inside it -- not even without --force. It deletes the directory
+# happily, and the nested repo is then left with admin data pointing at a
+# path that no longer exists: a "prunable" entry that lingers in its
+# `git worktree list` until someone notices and prunes it, and which blocks
+# re-using that branch name in a future worktree.
+#
+# So the ordering below is the whole safeguard, not a nicety.
+for rel in $(wtd_nested_symlink_repos "$REPO"); do
+  # Even when the nested checkout is already gone (an earlier blind rm, or a
+  # worktree created before this provisioning existed), prune so no stale
+  # "prunable" entry is left behind holding its branch name hostage.
+  if [ ! -e "$WORKTREE_DIR/$rel/.git" ]; then
+    git -C "$REPO/$rel" worktree prune 2>/dev/null || true
+    continue
+  fi
+  echo "worktree-ddev: removing nested worktree $rel"
+  if [ "$force" = 1 ]; then
+    git -C "$REPO/$rel" worktree remove --force "$WORKTREE_DIR/$rel" 2>/dev/null \
+      || rm -rf "$WORKTREE_DIR/$rel"
+  else
+    git -C "$REPO/$rel" worktree remove "$WORKTREE_DIR/$rel" \
+      || wtd_die "nested worktree $rel has uncommitted changes -- commit them, or re-run with --force"
+  fi
+  git -C "$REPO/$rel" worktree prune 2>/dev/null || true
+done
+
 echo "worktree-ddev: removing worktree $WORKTREE_DIR"
 if [ "$force" = 1 ]; then
   git -C "$REPO" worktree remove --force "$WORKTREE_DIR"
