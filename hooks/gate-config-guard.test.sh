@@ -5,11 +5,14 @@
 HOOK="$(cd "$(dirname "$0")" && pwd)/gate-config-guard.sh"
 PASS=0; FAIL=0
 
+# The hook is scoped to container sessions (host is the maintainer of the
+# guard layer and exits early). Every case below except the HOST SCOPING
+# section therefore simulates a container by exporting DDEV_PROJECT.
 edit() { # edit <expected-exit> <desc> <tool> <file_path> [new_string]
   local expect="$1" desc="$2" tool="$3" file="$4" new="${5:-x}"
   jq -n --arg t "$tool" --arg f "$file" --arg n "$new" \
     '{tool_name:$t, tool_input:{file_path:$f, new_string:$n, content:$n}}' \
-    | bash "$HOOK" >/dev/null 2>&1
+    | DDEV_PROJECT=testproj bash "$HOOK" >/dev/null 2>&1
   local got=$?
   if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "FAIL ($desc): expected exit $expect got $got — $tool $file"; fi
@@ -18,10 +21,19 @@ edit() { # edit <expected-exit> <desc> <tool> <file_path> [new_string]
 bashcmd() { # bashcmd <expected-exit> <desc> <command-string>
   local expect="$1" desc="$2" cmd="$3"
   jq -n --arg c "$cmd" '{tool_name:"Bash", tool_input:{command:$c}}' \
-    | bash "$HOOK" >/dev/null 2>&1
+    | DDEV_PROJECT=testproj bash "$HOOK" >/dev/null 2>&1
   local got=$?
   if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "FAIL ($desc): expected exit $expect got $got — cmd: $cmd"; fi
+}
+
+hostcmd() { # hostcmd <expected-exit> <desc> <json>  — no DDEV_PROJECT set
+  local expect="$1" desc="$2" json="$3"
+  if [ -f /.dockerenv ]; then PASS=$((PASS+1)); return; fi   # can't test host from a container
+  printf '%s' "$json" | env -u DDEV_PROJECT bash "$HOOK" >/dev/null 2>&1
+  local got=$?
+  if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
+  else FAIL=$((FAIL+1)); echo "FAIL ($desc): expected exit $expect got $got"; fi
 }
 
 # --- Edit/Write on protected paths — always blocked, no opt-out --------------
@@ -66,6 +78,24 @@ bashcmd 0 "ls"                  'ls -la .claude/'
 bashcmd 0 "unrelated commit"    'git commit -m "fix: something"'
 bashcmd 0 "unrelated redirect"  'echo hi > /tmp/scratch.txt'
 bashcmd 0 "plain echo"          'echo hello'
+
+# --- HOST SCOPING — host session is the guard maintainer, never blocked ------
+hostcmd 0 "host: edit rules-disable" \
+  '{"tool_name":"Edit","tool_input":{"file_path":".claude/rules-disable","new_string":"x"}}'
+hostcmd 0 "host: edit test-gate.json" \
+  '{"tool_name":"Edit","tool_input":{"file_path":".claude/test-gate.json","new_string":"x"}}'
+hostcmd 0 "host: bash append rules-disable" \
+  '{"tool_name":"Bash","tool_input":{"command":"echo php-debug-guard >> .claude/rules-disable"}}'
+# The regression that motivated the scoping: authoring a new guard hook whose
+# heredoc BODY documents its own .claude/rules-disable opt-out line.
+hostcmd 0 "host: heredoc body mentions rules-disable" \
+  '{"tool_name":"Bash","tool_input":{"command":"cat > hooks/new-guard.sh <<EOF\ngrep -qx new-guard \"$T/.claude/rules-disable\" && exit 0\nEOF"}}'
+# Same command from a container is still blocked (conservative, false positive
+# accepted there — containers run unsupervised).
+bashcmd 2 "container: heredoc body mentions rules-disable" \
+  'cat > hooks/new-guard.sh <<EOF
+grep -qx new-guard "$T/.claude/rules-disable" && exit 0
+EOF'
 
 echo "gate-config-guard tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

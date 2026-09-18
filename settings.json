@@ -362,6 +362,15 @@
             "command": "bash /var/www/html/.claude/hooks/destructive-sql-live-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/background-wait-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [

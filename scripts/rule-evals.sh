@@ -158,7 +158,7 @@ EOF
   for f in caveman model-tiering graphiti-usage core-triggers; do
     grep -qi "$f" "$TXT" || missing="$missing $f"
   done
-  for f in investigation php-debugging gh-ticket-comments hcf-plan-orchestrate upgrade-verification codegraph-default; do
+  for f in investigation php-debugging gh-ticket-comments hcf-plan-orchestrate upgrade-verification codegraph-default background-tasks; do
     grep -qi "$f" "$TXT" && leaked="$leaked $f"
   done
   if [ -z "$missing" ] && [ -z "$leaked" ]; then
