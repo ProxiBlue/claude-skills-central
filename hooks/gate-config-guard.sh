@@ -25,16 +25,32 @@
 #   truncate, git checkout/restore/apply/reset, or a scripting interpreter
 #   one-liner). Reads (cat, grep, jq without -i, git diff/log/show) pass.
 #
-# Deliberately NO bypass of any kind:
+# Scope: CONTAINER SESSIONS ONLY (Lucas, 2026-09-18).
+# The host session is where the guard layer itself is authored and
+# maintained — hooks, rules, settings wiring. Blocking it there blocks the
+# maintainer, not an unsupervised agent, and it fires on false positives
+# that make guard work impossible: the Bash branch greps the WHOLE command
+# string, so a heredoc whose BODY merely mentions .claude/rules-disable
+# (which every new guard hook does, documenting its own opt-out) is blocked
+# even though it writes nothing protected. Demonstrated 2026-09-18: a test
+# script for this very hook was blocked for containing the string.
+# So: host exits early. Containers — where plan-orchestrate workers and
+# cron agents run unsupervised — keep the full block.
+#
+# Deliberately NO bypass of any kind INSIDE A CONTAINER:
 #   - no rules-disable opt-out (this hook guards rules-disable itself —
 #     letting it check rules-disable would be checking the lock with its
 #     own key)
 #   - no CLAUDE_*_ALLOWED env var
-# If a gate genuinely needs to change (enable/disable/relax), tell the user
-# directly and have them make the edit, or run the specific command
-# themselves. Do not read or modify this hook to find a way around it, and
-# do not try a different tool/subagent/heredoc/interpreter to write the file
-# instead — that's exactly the class of workaround this hook exists to stop.
+# If a gate genuinely needs to change (enable/disable/relax) from inside a
+# container, tell the user directly and have them make the edit, or run the
+# specific command themselves. Do not try a different tool/subagent/heredoc/
+# interpreter to write the file instead — that's exactly the class of
+# workaround this hook exists to stop.
+#
+# Known gap this scoping opens: a subagent spawned BY a host session also
+# runs on the host and is therefore also exempt. Accepted — host sessions
+# are interactive and supervised.
 #
 # Known gaps (same class of gap other fleet guards document openly): a
 # write via an interpreter one-liner that neither names an obvious write
@@ -46,6 +62,12 @@
 # never blocks on infrastructure.
 
 command -v jq >/dev/null 2>&1 || exit 0
+
+# Host session = not inside a DDEV container. The maintainer of the guard
+# layer, so not a subject of it. See scope note in the header.
+if [ -z "${DDEV_PROJECT:-}" ] && [ ! -f /.dockerenv ]; then
+  exit 0
+fi
 
 INPUT=$(cat 2>/dev/null)
 [ -z "$INPUT" ] && exit 0
@@ -71,9 +93,10 @@ block() {
   echo "  - invoke a skill or sub-agent to make the edit for you" >&2
   echo "  - read or modify this hook to find a way around it" >&2
   echo "" >&2
-  echo "There is no bypass. If a gate genuinely needs to change, tell the" >&2
-  echo "user exactly what needs to change and why, and have them make the" >&2
-  echo "edit or run the command themselves." >&2
+  echo "There is no bypass from inside a container. If a gate genuinely" >&2
+  echo "needs to change, tell the user exactly what needs to change and" >&2
+  echo "why, and have them make the edit from the host session or run the" >&2
+  echo "command themselves." >&2
   exit 2
 }
 
