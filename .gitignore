@@ -12,3 +12,7 @@ infra/do-bugsink/.admin-password
 # fleet-repo content, regenerate per the header comment in the launcher
 # script that references each (e.g. scripts/magento-standards-mcp.sh).
 scripts/vendor/
+
+# Never let the auto-backup cron sweep up scratch secret files
+.git-secret-replacements.txt
+*.secret-replacements.txt
