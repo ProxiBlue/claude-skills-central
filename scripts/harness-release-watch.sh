@@ -120,7 +120,7 @@ if [ "$DRY" = "1" ]; then
   cat "$BODY"; rm -f "$BODY"; exit 0
 fi
 
-curl -sS -X POST "${CHATROOM_URL}/api/threads" \
+RESPONSE=$(curl -sS -X POST "${CHATROOM_URL}/api/threads" \
   -H "Content-Type: application/json" \
   -H "X-PB-Chatroom-Participant: host-auto" \
   -d "$(python3 - "$BODY" "$CUR" <<'PYEOF'
@@ -134,7 +134,20 @@ print(json.dumps({
     "discussion_type": "postmortem",
 }))
 PYEOF
-)" >/dev/null 2>&1 && echo "[$(date -Iseconds)] alert posted ($LAST -> $CUR)"
+)" 2>/dev/null)
+THREAD_ID=$(printf '%s' "$RESPONSE" | python3 -c "import sys,json
+try: print(json.load(sys.stdin).get('id',''))
+except Exception: print('')" 2>/dev/null)
+[ -n "$THREAD_ID" ] && echo "[$(date -Iseconds)] alert posted ($LAST -> $CUR) thread $THREAD_ID"
+
+# Each summary describes the tooling impact of the CURRENT release, so an
+# older one is superseded rather than additive -- five were stacked up in the
+# inbox on 2026-09-20, none read. Anything genuinely actionable from a summary
+# should become its own thread, not linger as an unread release note.
+RETIRE="$HOME/claude-skills-central/scripts/chatroom-retire-superseded.sh"
+if [ -x "$RETIRE" ] && [ -n "$THREAD_ID" ]; then
+  "$RETIRE" "claude-code " "$THREAD_ID" || true
+fi
 
 echo "$CUR" > "$LAST_FILE"
 rm -f "$BODY"

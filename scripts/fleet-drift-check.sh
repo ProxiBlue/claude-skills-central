@@ -117,6 +117,13 @@ print(json.dumps({
 THREAD_ID=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', 'FAILED'))" 2>/dev/null)
 echo "[$(date -Iseconds)] drift detected — posted thread ${THREAD_ID:-FAILED}"
 
+# Snapshot report: the previous one is superseded the moment this posts.
+RETIRE="$HOME/claude-skills-central/scripts/chatroom-retire-superseded.sh"
+if [ -x "$RETIRE" ] && [ "${THREAD_ID:-FAILED}" != "FAILED" ]; then
+  "$RETIRE" "Fleet drift" "${THREAD_ID}" || true
+fi
+
+
 # Roll baseline forward so the same drift doesn't re-alert weekly
 cp "$CURRENT" "$BASELINE"
 rm -f "$BODY"

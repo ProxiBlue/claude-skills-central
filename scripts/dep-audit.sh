@@ -32,12 +32,23 @@ resolve_dir() {
   done
 }
 
-alert_chatroom() {  # <subject> <body>
-  curl -sS -X POST "${CHATROOM_URL}/api/threads" \
+alert_chatroom() {  # <subject> <body> [retire-prefix]
+  local resp tid
+  resp=$(curl -sS -X POST "${CHATROOM_URL}/api/threads" \
     -H "Content-Type: application/json" \
     -H "X-PB-Chatroom-Participant: host-auto" \
     -d "$(python3 -c "import json,sys;print(json.dumps({'to':'host','subject':sys.argv[1],'body':sys.argv[2],'discussion_type':'escalation'}))" "$1" "$2")" \
-    >/dev/null 2>&1
+    2>/dev/null)
+  # An advisory report for a project supersedes the previous one FOR THAT
+  # PROJECT -- the prefix is per-project so lcd-mageos's report never closes
+  # pvcpipesupplies's. Same advisory set re-reported weekly is noise, not news.
+  local retire="$HOME/claude-skills-central/scripts/chatroom-retire-superseded.sh"
+  tid=$(printf '%s' "$resp" | python3 -c "import sys,json
+try: print(json.load(sys.stdin).get('id',''))
+except Exception: print('')" 2>/dev/null)
+  if [ -n "${3:-}" ] && [ -x "$retire" ] && [ -n "$tid" ]; then
+    "$retire" "$3" "$tid" >/dev/null 2>&1 || true
+  fi
 }
 
 checked=0; alerted=0
@@ -76,7 +87,8 @@ while IFS= read -r proj; do
 $detail
 
 Check: cd $dir && composer audit --locked
-Fix: update the affected package(s) on a feature branch; advisory clears on next run."
+Fix: update the affected package(s) on a feature branch; advisory clears on next run." \
+        "Dependency advisories: $proj"
       alerted=$((alerted+1))
       echo "[$proj] $count advisories — ALERTED"
     elif [ "$old_hash" = "none" ]; then
