@@ -80,6 +80,18 @@ for repo in "${REPOS[@]}"; do
       continue
     fi
   fi
+  # An unresolvable @{u} used to make the whole push block vanish: the test
+  # below just returned empty and the loop moved on, logging nothing at all.
+  # That is how this repo quietly stopped pushing on 2026-09-20 -- git
+  # filter-repo strips the remote, and `git remote add` + `git push --force
+  # origin main` (no -u) never restores the tracking branch. Commits kept
+  # accumulating locally with every backup reporting success by saying
+  # nothing. Same silent-failure shape as the stale index.lock above, so it
+  # gets the same treatment: say so, loudly, and name the fix.
+  if ! git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    echo "$STAMP NO-UPSTREAM $repo: branch '$(git rev-parse --abbrev-ref HEAD)' has no tracking branch, nothing can be pushed -- fix with: git -C $repo branch --set-upstream-to=origin/<branch>" >> "$LOG"
+    continue
+  fi
   if [ -n "$(git log --oneline @{u}..HEAD 2>/dev/null)" ]; then
     # Second gate: a secret can already be sitting in an unpushed commit --
     # from a hand commit, or from a run of this script that predates the gate.
