@@ -234,6 +234,5 @@
       "**Org-specific CLIs**: None configured",
       "No routine-under-<user>/ prefix qualifiers found"
     ]
-  },
-  "model": "claude-fable-5-1[1m]"
+  }
 }
