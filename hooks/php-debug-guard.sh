@@ -80,9 +80,29 @@ if echo "$NEW" | grep -qE "$PATTERN"; then
   echo "                                                # real E2E/Playwright" >&2
   echo "                                                # batch runs" >&2
   echo "" >&2
-  echo "Tool genuinely can't reach the code path at all (e.g. an" >&2
-  echo "unattended cron/queue worker you cannot invoke interactively)?" >&2
-  echo "Say so to the user before falling back. Genuine production use of" >&2
+  echo "" >&2
+  echo "THE ERROR ALREADY HAPPENED and you cannot re-run it interactively" >&2
+  echo "(cron, a queue consumer, a customer's request, anything on uat or" >&2
+  echo "live)? Then do not reach for var_dump at all — BUGSINK ALREADY" >&2
+  echo "CAPTURED IT, with the exception chain, the frames and the request" >&2
+  echo "context. That is strictly more than echo-debugging would give you," >&2
+  echo "and it needs no reproduction:" >&2
+  echo "" >&2
+  echo '  source ~/.pb-hcf/bugsink.env 2>/dev/null || source .claude/bugsink.env' >&2
+  echo '  curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" \' >&2
+  echo '    "$BUGSINK_URL_CONTAINER/api/canonical/0/issues/?project=<id>"' >&2
+  echo '  # then the frames:  .../api/canonical/0/events/?issue=<issue-uuid>' >&2
+  echo "" >&2
+  echo "Cite friendly_id + the top IN-APP frame file:line (not framework" >&2
+  echo "frames). One bugsink project per environment, so pick the right id:" >&2
+  echo "dev/ddev vs uat vs prod are different projects. Per-project playbook:" >&2
+  echo ".claude/bugsink.md. No env file, or no bugsink project for this repo?" >&2
+  echo "Say so and skip it — never guess at error state." >&2
+  echo "" >&2
+  echo "Tool genuinely can't reach the code path at all, AND bugsink has" >&2
+  echo "nothing for it (e.g. an unattended worker that failed silently" >&2
+  echo "without throwing)? Say so to the user before falling back." >&2
+  echo "Genuine production use of" >&2
   echo "this function? Ask the user — they can add 'php-debug-guard' to" >&2
   echo ".claude/rules-disable." >&2
   echo "Full reference: rules/reference/php-debugging.md (claude-skills-central)." >&2

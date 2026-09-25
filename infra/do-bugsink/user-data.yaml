@@ -30,6 +30,7 @@ write_files:
             PORT: "8000"
             BASE_URL: "https://bugsink.proxiblue.com.au"
             BEHIND_HTTPS_PROXY: "true"
+            # No email by design -- see README "Notification model".
           volumes:
             - bugsink_data:/data
           expose:
@@ -56,6 +57,16 @@ write_files:
 
 runcmd:
   - curl -fsSL https://get.docker.com | sh
+  # 1GB swap: the droplet is 512MB and bugsink alone sits at ~405MB. Without
+  # swap the kernel OOM-kills bugsink's own snappea ingest worker on every
+  # boot and events stop being digested (observed 2026-09-25).
+  - fallocate -l 1G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - echo 'vm.swappiness=20' > /etc/sysctl.d/99-swap.conf
+  - sysctl -p /etc/sysctl.d/99-swap.conf
   - ufw allow 22/tcp
   - ufw allow 80/tcp
   - ufw allow 443/tcp

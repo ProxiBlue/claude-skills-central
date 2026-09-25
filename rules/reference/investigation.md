@@ -19,6 +19,16 @@ When a test fails, a system errors, or the user reports a bug, behave as follows
    - Test failures: every file the test runner produced for the failing case (stdout/stderr capture, result files, recorded fixtures, screenshots, traces). Not a sample — every file.
    - Unit failures: the failing test file, the class under test, the fixture the test used.
    - Runtime errors: the actual error log, the request log, and the log of any downstream service invoked during the failure window.
+   - **Runtime errors, also MANDATORY: ask Bugsink.** `var/log` holds what Magento chose to write; Bugsink holds the captured exception with its chain, frames, request context and release tag — including errors thrown on uat/live and by cron/queue workers you cannot re-run. Grepping logs while ignoring a tracker that already has the stacktrace is the same failure this protocol bans.
+
+     ```bash
+     source ~/.pb-hcf/bugsink.env 2>/dev/null || source .claude/bugsink.env
+     BS="$BUGSINK_URL_CONTAINER"   # in a ddev container; $BUGSINK_URL_HOST on the host
+     curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" "$BS/api/canonical/0/issues/?project=<id>"
+     curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" "$BS/api/canonical/0/events/?issue=<issue-uuid>"
+     ```
+
+     One Bugsink project per ENVIRONMENT — dev/ddev, uat and prod are separate projects with separate ids, so a wrong id answers the wrong question rather than erroring. Per-project ids and queries: that project's `.claude/bugsink.md`. Cite `friendly_id` plus the top **in-app** frame `file:line`, never a framework frame. No env file where you are running, or no Bugsink project for this repo → say that plainly and skip; never guess at error state.
 
 3. **Compare to a prior passing run** if artefacts exist. If the same "broken" state existed before this session, say so with the timestamp as evidence. If no prior run exists, say that.
 
@@ -84,6 +94,40 @@ These are always fine and should be used in place of speculation:
 - "I don't know yet — reading the logs now."
 - "My change at `<file>:<line>` could plausibly have caused this; ruling out by checking <X>."
 - "I was wrong earlier — the evidence says <Y>." (Replaces the earlier wrong claim, does not sit beside it.)
+
+## Hidden issues — the errors nobody reported
+
+Everything above is reactive: something visibly failed. Bugsink also answers the
+question nobody asked, which is where the real damage hides — an exception that
+throws on every checkout while the page still renders, a queue consumer dying
+silently, a fatal only logged-out customers hit. No test asserts it and no user
+reports it, so it survives every green suite.
+
+So after landing a change that touches runtime behaviour, sweep for what is NEW
+rather than only for what was reported:
+
+```bash
+source ~/.pb-hcf/bugsink.env 2>/dev/null || source .claude/bugsink.env
+BS="$BUGSINK_URL_CONTAINER"
+curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" "$BS/api/canonical/0/issues/?project=<id>" \
+  | jq -r '.results[] | select(.first_seen > "<when this work started>")
+      | [.friendly_id, .calculated_type, .calculated_value[:70], .digested_event_count] | @tsv'
+```
+
+Two signals worth naming explicitly, because both read as "fine" at a glance:
+
+- **A regression is an issue marked resolved whose `last_seen` is after its fix
+  date.** Report it with both timestamps, not as a new bug.
+- **Frequency is severity.** A `digested_event_count` climbing fast on a quiet
+  issue outranks a scary-looking exception seen once, and trend is the one thing
+  a log grep cannot tell you.
+
+Under HCF this sweep is already automated and must not be duplicated by hand:
+the `issue-sentinel` agent runs post-batch (order 30), queries `first_seen` since
+its own rolling batch marker filtered by `HCF_RELEASE`, and writes a
+`_issue_sentinel.md` verdict to the plan dir. Outside an orchestrated batch —
+a one-off fix, a hotfix, a manual verification pass — nothing runs it for you,
+and this section is the manual equivalent.
 
 ## Hard-stop trigger
 

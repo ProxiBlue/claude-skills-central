@@ -1,9 +1,17 @@
 # Bugsink on DigitalOcean — dedicated error-tracker droplet (AP-2)
 
-> **STATUS: LIVE since 2026-08-03.** Droplet `134.199.172.217` (SYD1, 1GB),
-> `https://bugsink.proxiblue.com.au` (caddy auto-TLS). Projects `pps` (id 1) +
-> `pps-prod` (id 2), agent token active, `~/.pb-hcf/bugsink.env` repointed.
-> Workstation bugsink retired (volume `bugsink_bugsink_data` retained).
+> **STATUS: LIVE.** Restored 2026-09-25 after the 2026-09-19 park (see incident
+> below). Droplet `134.199.172.217` (SYD1), `https://bugsink.proxiblue.com.au`
+> (caddy auto-TLS, cert valid to 2026-11-22). Projects `pps` (id 1), `pps-prod`
+> (id 2), `pps-lucas-dev` (id 3) — data volume survived the park, DSNs and the
+> agent API token are unchanged. **Both leaked secrets rotated 2026-09-25** and
+> the old superuser password verified rejected.
+>
+> The droplet is **512 MB, not the 1 GB this doc originally specified** — bugsink
+> alone sits at ~405 MB and was OOM-killing its own `snappea` ingest worker on
+> every restart. 1 GB swap added 2026-09-25 (`/swapfile`, in `/etc/fstab`,
+> `vm.swappiness=20`). Resize to the 1 GB plan if ingest volume grows.
+>
 > Note: cloud-init user-data was NOT applied at create; setup was executed
 > over SSH instead — the user-data.yaml here remains the rebuild recipe.
 > Pending: `justbetter/magento2-sentry` on pps live (next deploy train).
@@ -61,11 +69,51 @@ host agents ─query▶  (caddy TLS + bugsink)  ◀─query── container agen
    pipeline (pb-hcf `templates/sentry/README.md`), DSN = `pps-prod`'s, errors
    only (`traces_sample_rate: 0`) — rides the next deploy train post go-live
 
+## Notification model — none, by design
+
+**Bugsink sends no mail and is not a notification system.** It is an error store
+that AI agents query (operator decision 2026-09-25: "bugsink purpose is pure ai
+access", no report emails).
+
+Consequences, so nobody treats these as faults:
+
+- `EMAIL_HOST` is deliberately unset, so bugsink runs
+  `bugsink.email_backends.QuietConsoleEmailBackend`
+  (`conf_templates/docker.py.template` picks the SMTP backend only when
+  `EMAIL_HOST` is non-empty).
+- Each project still has `alert_on_new_issue: true`, so bugsink queues an alert
+  task per new issue and then discards it, logging
+  `Email is not set up, the following was not sent: "..." in "pps-uat" (New issue)`.
+  **That line is expected.** The flags are left on so a future webhook needs no
+  data change.
+- The UI shows a "no email backend" system warning. Ignore it, or dismiss it as
+  superuser (the link posts to `silence_email_system_warning`).
+
+Who actually gets told, then:
+
+| path | when |
+|---|---|
+| `issue-sentinel` agent (pb-hcf, post-batch, order 30) | after every HCF batch — queries issues `first_seen` since its batch marker, PASS or structured PUSHBACK |
+| `rules/reference/investigation.md` | any runtime error / bug report — querying bugsink is a mandatory artefact step |
+| `hooks/php-debug-guard.sh` block message | the moment someone reaches for `var_dump` on an error that already happened |
+| `rules/reference/investigation.md` → Hidden issues | manual sweep after a runtime change outside an HCF batch |
+
+**Open question against pps #366:** that ticket's requirement list says "Alert via
+email/Slack when new or recurring errors spike". This design satisfies the intent
+(errors no longer go unnoticed) through agent polling rather than push
+notification. Whether that closes the requirement or leaves it open is the
+operator's call — do not silently mark #366 done on the strength of capture
+alone.
+
 ## Ops notes
 
 - SQLite in the `bugsink_data` docker volume — **backups DONE 2026-08-03:**
   operator enabled droplet backups in the DO panel (covers the volume)
 - OS security patches: unattended-upgrades enabled by cloud-init
+- **Swap is load-bearing on this 512 MB droplet** — without it the snappea
+  ingest worker is OOM-killed and events silently stop being digested.
+  Check with `swapon --show` after any rebuild; a rebuild from
+  `user-data.yaml` does NOT create it.
 - Secrets: `.bugsink-secret` (Django SECRET_KEY) + `.admin-password` live here
   gitignored, mode 600 — copy to password manager
 - Retention: bugsink defaults keep event counts bounded per project
@@ -86,6 +134,10 @@ Rotation is the fix; history rewriting is cleanup.
 
 - [x] Secrets removed from the tracked file (env substitution, above)
 - [x] Git history rewritten to redact both values
-- [ ] **Rotate the Django SECRET_KEY** (invalidates existing sessions)
-- [ ] **Rotate the superuser password**, update `.admin-password` + password manager
+- [x] **Rotated the Django SECRET_KEY** 2026-09-25 (existing sessions invalidated)
+- [x] **Rotated the superuser password** 2026-09-25 — `.admin-password` updated;
+      new password logs in (302 + session), leaked one rejected (200, no session).
+      Previous values kept at `.admin-password.leaked.bak` / `.bugsink-secret.leaked.bak`
+      (gitignored) purely so a future audit can prove which value was burned.
+      **Still to do by hand: put the new password in the password manager.**
 - [ ] Consider whether this repo should be public at all

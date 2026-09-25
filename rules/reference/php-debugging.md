@@ -20,8 +20,35 @@ The plugin is `xdebug@xdebug-mcp` (koriym/xdebug-mcp), seeded into every DDEV pr
 | "Why is this slow? Where is time spent?" | `xprofile` |
 | "Is this line / branch even reached by the test?" | `xcoverage` |
 | "Same call, two inputs — what diverges?" | `xcompare --run-a=… --run-b=…` |
+| "It already threw, and I can't re-run it" (cron, queue consumer, uat/live, a customer's request) | **Bugsink** — see below |
 
-If the question doesn't fit any of those, fall back to reading the code — not to `var_dump`.
+If the question doesn't fit any of those, fall back to reading the code — not to
+`var_dump`.
+
+### Bugsink: for errors that already happened
+
+Every tool above needs you to *reproduce* the problem. When something already
+threw and you cannot re-run it interactively, Bugsink has already captured the
+exception chain, the frames, the request context and the release tag — strictly
+more than a `var_dump` would have told you, at zero reproduction cost.
+
+```bash
+source ~/.pb-hcf/bugsink.env 2>/dev/null || source .claude/bugsink.env
+BS="$BUGSINK_URL_CONTAINER"   # in-container; $BUGSINK_URL_HOST on the host
+curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" "$BS/api/canonical/0/issues/?project=<id>"
+curl -s -H "Authorization: Bearer $BUGSINK_API_TOKEN" "$BS/api/canonical/0/events/?issue=<issue-uuid>"
+```
+
+One Bugsink project **per environment** — dev/ddev, uat and prod have different
+ids, and a wrong id answers the wrong question instead of erroring, so check the
+mapping in that repo's `.claude/bugsink.md` first. Cite `friendly_id` plus the
+top **in-app** frame `file:line`, never a framework frame. No env file where you
+are running, or no project for this repo → say so and skip; never guess.
+
+The two are complements, not alternatives: Bugsink tells you *where and what*
+threw in an environment you cannot attach to; xdebug-mcp tells you *why* once you
+can reproduce it locally. Typical order is Bugsink for the frame, then `xstep` on
+that frame.
 
 ## Availability — xdebug/pcov default OFF, load on demand (see xdebug-pcov-defaults.md)
 
