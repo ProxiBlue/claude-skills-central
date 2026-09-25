@@ -99,6 +99,26 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/test-bg-guard.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/magento-config-dump-guard.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash /home/lucas/claude-skills-central/hooks/perf-gate.sh",
             "timeout": 30
           }
