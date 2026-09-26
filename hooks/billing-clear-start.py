@@ -14,7 +14,7 @@ from pathlib import Path
 # Relative to this file — see billing-precompact-guard.py for the full
 # rationale.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from billing_context_lib import state_path_for_cwd  # noqa: E402
+from billing_context_lib import format_label_fix, split_by_xero, state_path_for_cwd  # noqa: E402
 
 
 def main() -> None:
@@ -35,15 +35,18 @@ def main() -> None:
         sys.exit(0)
     p.unlink(missing_ok=True)
 
-    tickets = data.get("tickets", [])
-    if not tickets:
-        sys.exit(0)
-
-    lines = [f"  #{t['number']} {t['title']}" for t in tickets]
-    print(
-        f"billing-context-guard: {len(tickets)} deployed-but-uninvoiced ticket(s) in "
-        f"{data.get('repo')} from before this /clear:\n" + "\n".join(lines)
-    )
+    tickets, label_missing = split_by_xero(data.get("tickets", []))
+    out = []
+    if tickets:
+        lines = [f"  #{t['number']} {t['title']}" for t in tickets]
+        out.append(
+            f"billing-context-guard: {len(tickets)} deployed ticket(s) with no `invoiced` label "
+            f"and no Xero invoice found in {data.get('repo')} from before this /clear:\n"
+            + "\n".join(lines))
+    if label_missing:
+        out.append("billing-context-guard: " + format_label_fix(data.get("repo"), label_missing))
+    if out:
+        print("\n\n".join(out))
     sys.exit(0)
 
 

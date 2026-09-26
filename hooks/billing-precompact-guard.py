@@ -39,6 +39,8 @@ from billing_context_lib import (  # noqa: E402
     current_repo,
     open_tickets_touched_this_session,
     project_id,
+    format_label_fix,
+    split_by_xero,
     uninvoiced_deployed_tickets,
     write_bridge_note,
 )
@@ -75,15 +77,21 @@ def main() -> None:
     if consume_bypass_once(cwd):
         sys.exit(0)
 
-    uninvoiced = uninvoiced_deployed_tickets(repo)
+    uninvoiced, label_missing = split_by_xero(uninvoiced_deployed_tickets(repo))
     if not uninvoiced:
+        if label_missing:  # label drift only — inform, never block
+            print("billing-context-guard: " + format_label_fix(repo, label_missing))
         sys.exit(0)
 
-    lines = [f"  #{i['number']} {i['title']}" for i in uninvoiced]
+    lines = [f"  #{i['number']} {i['title']}"
+             + ("  (Xero unreachable — label-only check)" if i.get("xero") == "unknown" else "")
+             for i in uninvoiced]
     print(
         "BLOCKED by billing-context-guard\n\n"
-        f"{len(uninvoiced)} ticket(s) deployed + closed but not yet invoiced in {repo}:\n"
+        f"{len(uninvoiced)} ticket(s) deployed + closed with no `invoiced` label and no Xero "
+        f"invoice found in {repo}:\n"
         + "\n".join(lines)
+        + (("\n\nAlso: " + format_label_fix(repo, label_missing)) if label_missing else "")
         + "\n\nInvoice these first, or bypass right now with:\n"
           "  bash ~/claude-skills-central/scripts/billing-bypass-once.sh\n"
           "(one-shot, just for this compact) — or export BILLING_COMPACT_ALLOWED=1 "
