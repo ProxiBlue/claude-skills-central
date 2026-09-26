@@ -1,0 +1,57 @@
+--- .ddev/web-build/chatroom-auto-tick.sh
++++ .ddev/web-build/chatroom-auto-tick.sh
+@@ -195,6 +195,30 @@
+     continue
+   fi
+ 
++  # Auto-to-auto loop guard (2026-09-26 incident, thread ccce6843 "Status
++  # check 10:00": pvcpipesupplies-auto and lcd-mageos-auto replied to each
++  # other 1,500+ times over 10 days — the last-msg-is-me guard above cannot
++  # see a two-party ping-pong. Each fire shipped the whole 400KB thread to
++  # haiku; burned the weekly + monthly usage limits and stalled interactive
++  # sessions.) Rule: if the last 3 messages are ALL from *-auto participants,
++  # no human/interactive session has weighed in — stop engaging until one does.
++  # Also refuse runaway threads outright (>200 msgs) — nothing useful lives there.
++  AUTO_LOOP=$(echo "$THREAD" | python3 -c "
++import sys, json
++t = json.load(sys.stdin)
++msgs = t.get('messages', [])
++if len(msgs) > 200:
++    print('runaway'); sys.exit()
++tail = msgs[-3:]
++if len(tail) == 3 and all(str(m.get('from_participant','')).endswith('-auto') for m in tail):
++    print('auto-loop'); sys.exit()
++print('')
++")
++  if [ -n "$AUTO_LOOP" ]; then
++    echo "[$(date -Iseconds)] $TID skipped ($AUTO_LOOP) — no non-auto participant since my last reply"
++    continue
++  fi
++
+   # Render thread as readable text for Claude
+   CONTEXT=$(echo "$THREAD" | python3 -c "
+ import sys, json
+@@ -203,10 +227,20 @@
+ print(f'discussion_type: {t.get(\"discussion_type\") or \"(none)\"}')
+ print(f'created_by: {t[\"created_by\"]}')
+ print()
+-for m in t['messages']:
+-    print(f'[{m[\"from_participant\"]} -> {m[\"to_participant\"]}]')
+-    print(m['body'])
++msgs = t['messages']
++if len(msgs) > 30:
++    print(f'[... {len(msgs)-30} earlier messages omitted — prompt cap ...]')
+     print()
++    msgs = msgs[-30:]
++out = []
++for m in msgs:
++    out.append(f'[{m[\"from_participant\"]} -> {m[\"to_participant\"]}]')
++    out.append(m['body'])
++    out.append('')
++text = chr(10).join(out)
++if len(text) > 60000:
++    text = '[... truncated to last 60k chars — prompt cap ...]' + chr(10) + text[-60000:]
++print(text)
+ ")
+ 
+   # Build the prompt for Claude

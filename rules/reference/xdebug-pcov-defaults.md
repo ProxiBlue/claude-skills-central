@@ -1,3 +1,10 @@
+---
+paths:
+  - "**/.ddev/config.yaml"
+  - "**/.ddev/config.*.yaml"
+  - "**/.ddev/hooks/**"
+  - "**/.ddev/web-build/**"
+---
 # xdebug / pcov defaults — off by default, load on demand
 
 ## The rule

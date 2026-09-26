@@ -1,3 +1,10 @@
+---
+paths:
+  - "**/*advisor*"
+  - "**/*security*"
+  - "**/*vulnerab*"
+  - "**/*.cve*"
+---
 # Full-page fetches only — MANDATORY (blanket, not just security)
 
 Never use WebFetch (or any tool that pre-summarizes a page). Fetch the raw page and read it in full yourself. This applies to EVERY fetch — security scans, module/version checks, and general research/citation lookups alike. Widened 2026-08-11 from an advisory/CVE-only rule after the user made clear the same blind spot risks silently dropping content during research, not just security scans.

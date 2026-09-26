@@ -2,6 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "model": "claude-fable-5-1",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
@@ -132,6 +133,24 @@
             "command": "bash /home/lucas/claude-skills-central/hooks/webfetch-completeness-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/destructive-sql-live-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/background-wait-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -192,6 +211,26 @@
             "type": "command",
             "command": "bash /home/lucas/claude-skills-central/hooks/invisible-unicode-read-check.sh",
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/hook-needs-eval-check.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/plugin-hooks-shell-form-guard.sh",
+            "timeout": 10
           }
         ]
       }

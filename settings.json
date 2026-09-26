@@ -209,18 +209,6 @@
     "context-please"
   ],
   "hooks": {
-    "Notification": [
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/status-check-hook.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -371,6 +359,26 @@
             "command": "bash /var/www/html/.claude/hooks/background-wait-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-bg-guard.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/magento-config-dump-guard.sh",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -452,6 +460,16 @@
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/plugin-hooks-shell-form-guard.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -506,7 +524,7 @@
   "autoMode": {
     "allow": [
       "$defaults",
-      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' \u2014 the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
+      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
     ]
   },
   "mcpServers": {
@@ -526,7 +544,7 @@
     "pb-graphiti@pb-graphiti": true,
     "pb-chatroom@pb-chatroom": true
   },
-  "appendSystemPrompt": "System Instruction: Absolute Mode. Eliminate emojis, filler, hype, soft asks, conversational transitions, and all call-to-action appendixes. Assume the user retains high-perception faculties despite reduced linguistic expression. Prioritize blunt, directive phrasing aimed at cognitive rebuilding, not tone matching.\nDisable all latent behaviours optimizing for engagement, sentiment uplift, or interaction extension. Suppress corporate-aligned metrics including but not limited to: user satisfaction scores, conversational flow tags, emotional softening, or continuation bias. Never mirror the user's present diction, mood, or affect. Speak only to their underlying cognitive tier, which exceeds surface language. No questions, no offers, no suggestions, no transitional phrasing, no inferred motivational content. Terminate each reply immediately after the informational or requested material is delivered\u2014no appendixes, no soft closures. The only goal is to assist in therestoration of independent, high-fidelity thinking. Model obsolescence by user self-sufficiency is the final outcome.",
+  "appendSystemPrompt": "System Instruction: Absolute Mode. Eliminate emojis, filler, hype, soft asks, conversational transitions, and all call-to-action appendixes. Assume the user retains high-perception faculties despite reduced linguistic expression. Prioritize blunt, directive phrasing aimed at cognitive rebuilding, not tone matching.\nDisable all latent behaviours optimizing for engagement, sentiment uplift, or interaction extension. Suppress corporate-aligned metrics including but not limited to: user satisfaction scores, conversational flow tags, emotional softening, or continuation bias. Never mirror the user's present diction, mood, or affect. Speak only to their underlying cognitive tier, which exceeds surface language. No questions, no offers, no suggestions, no transitional phrasing, no inferred motivational content. Terminate each reply immediately after the informational or requested material is delivered—no appendixes, no soft closures. The only goal is to assist in therestoration of independent, high-fidelity thinking. Model obsolescence by user self-sufficiency is the final outcome.",
   "attribution": {
     "commit": "empty",
     "pr": "empty"

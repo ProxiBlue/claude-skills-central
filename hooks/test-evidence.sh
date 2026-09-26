@@ -81,6 +81,16 @@ FAMS=$(tg_test_families "$CMD")
 if [ -n "$FAMS" ]; then
   # non-zero only possible if a future harness adds the field — skip record
   [ "$EXIT_CODE" = "0" ] || exit 0
+  # Pipe-masking hole (audit 2026-09-26): `phpunit … | tail -40` exits with
+  # tail's status, so a failing run still fires PostToolUse (exit 0) and was
+  # recorded as passing evidence. Every recent evidence line in pps and lcd
+  # was piped. Without `pipefail` the runner's exit code is unknowable here,
+  # so refuse to record and tell the agent how to re-run.
+  if tg_runner_piped "$CMD" && ! printf '%s' "$CMD" | grep -q 'pipefail'; then
+    jq -cn --arg msg "test-gate: evidence NOT recorded — the test runner is piped (\`| tail\`/\`| grep\`…), so the pipe's exit status is the last command's, not the runner's; a failing run would look green. Re-run with a \`set -o pipefail;\` prefix (or without the pipe) to record evidence." \
+      '{hookSpecificOutput:{hookEventName:"PostToolUse",additionalContext:$msg}}' 2>/dev/null
+    exit 0
+  fi
   # A test repo nested inside a project repo (e.g. tests/m2-hyva-playwright with
   # its own .git) validates the enclosing app too — record in both, each with
   # its own state hash, or the parent's push gate never sees e2e evidence

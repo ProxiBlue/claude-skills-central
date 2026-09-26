@@ -211,6 +211,24 @@ $(printf '%s\n' "$cmd" | sed -E 's/(\|\|)|(&&)|;|\||\$\(/\n/g')
 EOF
 }
 
+# True (exit 0) when a test-runner segment is followed by a single `|` —
+# i.e. its exit status is masked by a downstream command (`phpunit | tail`).
+# `||` is not a pipe. Splits on single pipes only; `$(...)` bodies are not
+# special-cased (a runner inside a substitution is already not recorded by
+# tg_test_families' `$(` split).
+tg_runner_piped() {
+  local cmd="$1" n i seg
+  local -a segs
+  cmd=${cmd//"||"/$'\x01'}
+  IFS='|' read -r -a segs <<< "$cmd"
+  n=${#segs[@]}
+  for ((i=0; i<n-1; i++)); do
+    seg=${segs[i]//$'\x01'/"||"}
+    [ -n "$(tg_test_families "$seg")" ] && return 0
+  done
+  return 1
+}
+
 # True (exit 0) when the command string contains a test-runner invocation.
 tg_is_test_command() {
   [ -n "$(tg_test_families "$1")" ]
