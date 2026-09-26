@@ -50,6 +50,8 @@ On a `FAIL` or `NEEDS-REVIEW` verdict the orchestrator STOPS. No remediation tas
 
 Then offer options with trade-offs. The owner decides what gets fixed, ticketed, or accepted in writing. Re-running the quorum after an owner-approved fix is fine; choosing *what* to fix is not the agent's call. `PASS-WITH-NOTES`: show the notes, do not auto-remediate them; the run may continue.
 
+**Scope = the change.** The quorum judges the security implications of the current plan / code / build only — code the change adds or modifies, or pre-existing code it newly reaches, exposes or worsens. Pre-existing holes it merely passes by never fail the change: out-of-scope critical/high findings are raised as a GitHub issue (label `security-quorum`, assigned to the owner) and listed in the report; out-of-scope medium/low are dropped. Those tickets need no owner go-ahead and are never worked inside the plan.
+
 Why: in one session (#462) the quorum found real issues but its suggested fixes (1) passed unconditionally for every guest quote, (2) patched the wrong caller — 0 of 8 entry points covered, (3) would have replaced a working, owner-chosen retry design. Quorum is good at finding, not reliably right about fixing.
 
 ## Workers never dump Magento config
