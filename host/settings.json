@@ -234,6 +234,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/scripts/claude-limit-reset-check.sh --startup",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   },
   "statusLine": {

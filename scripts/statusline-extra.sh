@@ -244,6 +244,13 @@ if [ -n "$wk_pct_raw" ] && is_num "$wk_pct_raw"; then
   make_bar "$wk_pct" 10 "$wk_color"
   printf -v weekly_seg '7d %s %s%d%%%s%s' "$BAR_OUT" "$wk_color" "$wk_pct" "$RESET" "$wk_eta"
 fi
+# Usage-limit reset grant (cedar_ember). Cache-only unless weekly >= 80% or no cache.
+reset_seg=""
+_rs="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/claude-limit-reset-check.sh"
+if [ -x "$_rs" ]; then
+  _rl=$(bash "$_rs" --line --pct "$wk_pct" 2>/dev/null)
+  [ -n "$_rl" ] && reset_seg="${MAGENTA}${_rl}${RESET}"
+fi
 sep=" ${DIM}|${RESET} "
 join_segs() {
   local first=1 s
@@ -255,17 +262,17 @@ join_segs() {
   done
 }
 if [ "$cols" -ge "$WIDE_MIN" ]; then
-  join_segs "$proj_seg" "$ctx_seg" "$model_seg" "$usage_seg" "$weekly_seg" "$wk_pace"
+  join_segs "$proj_seg" "$ctx_seg" "$model_seg" "$usage_seg" "$weekly_seg" "$wk_pace" "$reset_seg"
   printf '\n'
 elif [ "$cols" -ge "$MED_MIN" ]; then
   join_segs "$proj_seg" "$ctx_seg" "$model_seg"; printf '\n'
-  if [ -n "$usage_seg$weekly_seg$wk_pace" ]; then
-    join_segs "$usage_seg" "$weekly_seg" "$wk_pace"; printf '\n'
+  if [ -n "$usage_seg$weekly_seg$wk_pace$reset_seg" ]; then
+    join_segs "$usage_seg" "$weekly_seg" "$wk_pace" "$reset_seg"; printf '\n'
   fi
 else
   printf '%s\n' "$proj_seg"
   join_segs "$ctx_seg" "$model_seg"; printf '\n'
-  if [ -n "$usage_seg$weekly_seg$wk_pace" ]; then
-    join_segs "$usage_seg" "$weekly_seg" "$wk_pace"; printf '\n'
+  if [ -n "$usage_seg$weekly_seg$wk_pace$reset_seg" ]; then
+    join_segs "$usage_seg" "$weekly_seg" "$wk_pace" "$reset_seg"; printf '\n'
   fi
 fi
