@@ -2,7 +2,6 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5-1",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
@@ -304,5 +303,6 @@
       "**Org-specific CLIs**: None configured",
       "No routine-under-<user>/ prefix qualifiers found"
     ]
-  }
+  },
+  "model": "opus"
 }
