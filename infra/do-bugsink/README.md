@@ -135,7 +135,7 @@ the fleet `logs-uat` / `logs-prod` MCP entries (host service
   files, add the two matchers/handles to the Caddyfile block, validate, `up -d`.
   Write tokens go into that project's deploy config (pps:
   `app/etc/env.{uat,live}.php` `log_shipping.ingest_token`); read tokens into
-  that project's `.ddev/docker-compose.ai.mounts.yaml` as
+  that project's `.ddev/config.yaml` `web_environment` as
   `LOGS_READ_TOKEN_UAT` / `LOGS_READ_TOKEN_PROD`.
 - **Apply safely** (a bad Caddyfile takes bugsink down with it): validate
   first — `docker run --rm --env-file .env -v $PWD/Caddyfile.new:/etc/caddy/Caddyfile:ro caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`

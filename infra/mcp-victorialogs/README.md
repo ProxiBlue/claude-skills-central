@@ -15,21 +15,21 @@ Fleet `mcps/.mcp.json` entries (mounted into every ddev project):
 
 | entry | header | env var (per project) |
 |---|---|---|
-| `logs-uat` | `Authorization: Bearer ${LOGS_READ_TOKEN_UAT:-unset}` | set in that project's `.ddev/docker-compose.ai.mounts.yaml` `environment:` |
+| `logs-uat` | `Authorization: Bearer ${LOGS_READ_TOKEN_UAT:-unset}` | set in that project's `.ddev/config.yaml` `web_environment:` |
 | `logs-prod` | `Authorization: Bearer ${LOGS_READ_TOKEN_PROD:-unset}` | same |
 
 A project without the vars gets 403 on every call (not onboarded) — harmless.
 
 Onboard a project: mint its tenant tokens (do-bugsink README), then in its
-`docker-compose.ai.mounts.yaml`:
+`.ddev/config.yaml` (same place as `BUDDY_TOKEN`):
 
 ```yaml
-    environment:
-      LOGS_READ_TOKEN_UAT: ${LOGS_R_PPS_UAT}
-      LOGS_READ_TOKEN_PROD: ${LOGS_R_PPS_PROD}
+web_environment:
+    - LOGS_READ_TOKEN_UAT=$LOGS_R_PPS_UAT
+    - LOGS_READ_TOKEN_PROD=$LOGS_R_PPS_PROD
 ```
-with the host shell exporting `LOGS_R_*` (source `~/.config/pb-logs/tokens.env`,
-same pattern as `BUDDY_TOKEN` from `~/.config/secrets.env`), then `ddev restart`.
+The host shell exports `LOGS_R_*` (read tokens only) via `~/.bashrc` from
+`~/.config/pb-logs/tokens.env`; then `ddev restart`. pps done 2026-09-30.
 
 ## Run / update
 
