@@ -103,7 +103,41 @@ else
   bad "billing-bypass-once.sh did not create marker at $STATE_DIR/$KEY2.bypass-once"
 fi
 
-rm -f /tmp/billing-test-err.txt /tmp/billing-bypass-test.out
+# --- Xero cross-check: exact #N match on bridge query output -----------------
+# Bridge --ref is a substring match (#1 hits "#191"); ticket may be named only
+# in line items; voided invoices don't count.
+python3 -c "
+import sys, json; sys.path.insert(0, '$HOOKS_DIR/../scripts')
+from billing_context_lib import matching_invoices, split_by_xero
+inv = lambda num, st, ref, *li: {'invoice_number': num, 'status': st, 'reference': ref,
+                                  'line_items': [{'description': d} for d in li]}
+out = json.dumps([inv('PPS-2018', 'PAID', 'PPS', '#191 contact page'),
+                  inv('PPS-2043', 'PAID', 'PPS', 'fix(#458): x', '#459 y'),
+                  inv('PPS-2045', 'PAID', 'PPS: #468, #470'),
+                  inv('LCD-047', 'VOIDED', 'lcd screen: #408')])
+assert matching_invoices(out, 1) == [], '#1 must not match #191'
+assert [i['invoice_number'] for i in matching_invoices(out, 459)] == ['PPS-2043'], 'line-item match'
+assert [i['invoice_number'] for i in matching_invoices(out, 470)] == ['PPS-2045'], 'reference match'
+assert matching_invoices(out, 408) == [], 'voided invoice must not count'
+assert matching_invoices(json.dumps({'message': \"No invoices found for ref '#9'.\"}), 9) == []
+assert matching_invoices('not json', 9) == []
+un, lm = split_by_xero([{'number': 1, 'xero': 'none'}, {'number': 2, 'xero': 'invoiced'},
+                        {'number': 3, 'xero': 'unknown'}, {'number': 4}])
+assert [t['number'] for t in un] == [1, 3, 4] and [t['number'] for t in lm] == [2], 'split'
+print('OK')
+" > /tmp/billing-xero-test.out 2>&1
+if grep -q "^OK$" /tmp/billing-xero-test.out; then ok; else bad "xero match: $(cat /tmp/billing-xero-test.out)"; fi
+
+# clear-start renders unbilled vs label-drift separately from saved state
+KEY3=$(python3 -c "import re,sys; print(re.sub(r'[^A-Za-z0-9_-]', '_', sys.argv[1].strip('/')))" "$D")
+mkdir -p "$STATE_DIR"
+printf '%s' '{"repo":"o/r","tickets":[{"number":11,"title":"real","xero":"none"},{"number":12,"title":"drift","xero":"invoiced","invoices":["PPS-1 PAID"]}]}' > "$STATE_DIR/$KEY3.json"
+run_py "billing-clear-start.py" "{\"source\":\"clear\",\"cwd\":\"$D\"}"
+if [ "$RC" = 0 ] && echo "$OUT" | grep -q "#11 real" && echo "$OUT" | grep -q "no Xero invoice" \
+   && echo "$OUT" | grep -q "#12 drift — PPS-1 PAID" && echo "$OUT" | grep -q "add-label invoiced" \
+   && [ ! -f "$STATE_DIR/$KEY3.json" ]; then ok; else bad "clear-start split render (rc=$RC): $OUT $ERR"; fi
+
+rm -f /tmp/billing-test-err.txt /tmp/billing-bypass-test.out /tmp/billing-xero-test.out
 rm -rf "$D"
 
 echo "billing-context-guard tests: $PASS passed, $FAIL failed, $SKIP skipped"

@@ -58,7 +58,8 @@ def main() -> None:
     if uninvoiced:
         state_path_for_cwd(cwd).write_text(json.dumps({
             "repo": repo,
-            "tickets": [{"number": i["number"], "title": i["title"]} for i in uninvoiced],
+            "tickets": [{k: i[k] for k in ("number", "title", "xero", "invoices") if k in i}
+                        for i in uninvoiced],
         }))
 
     sys.exit(0)

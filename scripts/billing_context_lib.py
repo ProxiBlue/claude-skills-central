@@ -40,8 +40,64 @@ def current_repo() -> str | None:
         return None
 
 
+BRIDGE_URL = os.environ.get("BILLING_BRIDGE_URL", "http://ddev-billing-web/internal/cli")
+DEAD_INVOICE_STATUSES = {"VOIDED", "DELETED"}
+
+
+def matching_invoices(query_stdout: str, number: int | str) -> list[dict]:
+    """Invoices from `xero-invoice query` stdout that really bill ticket #N.
+
+    The bridge's --ref match is a substring match (#1 hits an invoice naming
+    #191), and some invoices name tickets only in line items (reference just
+    "PPS"), so re-check reference + every line description for #N not
+    followed by another digit. Voided/deleted invoices don't count."""
+    try:
+        invoices = json.loads(query_stdout)
+    except Exception:
+        return []
+    if not isinstance(invoices, list):  # {"message": "No invoices found ..."}
+        return []
+    pat = re.compile(rf"#{number}(?!\d)")
+    hits = []
+    for inv in invoices:
+        if str(inv.get("status", "")).upper() in DEAD_INVOICE_STATUSES:
+            continue
+        texts = [inv.get("reference") or ""] + [
+            li.get("description") or "" for li in inv.get("line_items") or []]
+        if any(pat.search(t) for t in texts):
+            hits.append(inv)
+    return hits
+
+
+def xero_invoices_for_ticket(repo: str, number: int | str) -> list[dict] | None:
+    """Query Xero via the billing bridge. None = bridge unreachable/failed
+    (caller falls back to label-only), [] = genuinely no invoice."""
+    try:
+        import urllib.request
+        token = Path("/etc/billing-bridge/token").read_text().strip()
+        req = urllib.request.Request(
+            BRIDGE_URL, method="POST",
+            data=json.dumps({"script": "xero-invoice",
+                             "argv": ["query", f"--ref=#{number}", f"--repo={repo}"]}).encode(),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            resp = json.loads(r.read().decode())
+        if resp.get("exit_code") != 0:
+            return None
+        return matching_invoices(resp.get("stdout", ""), number)
+    except Exception:
+        return None
+
+
 def uninvoiced_deployed_tickets(repo: str) -> list[dict]:
-    """Mirrors billing-invoice SKILL.md's 'Finding all uninvoiced tickets' recipe."""
+    """Mirrors billing-invoice SKILL.md's 'Finding all uninvoiced tickets'
+    recipe (label is the cheap prefilter), then cross-checks each unlabelled
+    ticket against Xero. Each returned issue carries "xero":
+      "none"     — no invoice found: really unbilled (blocks)
+      "invoiced" — invoice exists, only the `invoiced` label is missing
+      "unknown"  — bridge down; treated as unbilled, today's label-only behaviour
+    """
     try:
         out = subprocess.run(
             ["gh", "issue", "list", "--repo", repo, "--label", "has been deployed live",
@@ -51,8 +107,34 @@ def uninvoiced_deployed_tickets(repo: str) -> list[dict]:
         issues = json.loads(out.stdout or "[]")
     except Exception:
         return []
-    return [i for i in issues
-            if not any(l.get("name", "").lower() == "invoiced" for l in i.get("labels", []))]
+    unlabelled = [i for i in issues
+                  if not any(l.get("name", "").lower() == "invoiced" for l in i.get("labels", []))]
+    bridge_up = True
+    for i in unlabelled:
+        found = xero_invoices_for_ticket(repo, i["number"]) if bridge_up else None
+        if found is None:
+            bridge_up = False  # one failure = outage; don't stack timeouts
+            i["xero"] = "unknown"
+        else:
+            i["xero"] = "invoiced" if found else "none"
+            if found:
+                i["invoices"] = [f"{v.get('invoice_number')} {v.get('status')}" for v in found]
+    return unlabelled
+
+
+def split_by_xero(tickets: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(unbilled, invoiced_but_unlabelled)."""
+    return ([t for t in tickets if t.get("xero") != "invoiced"],
+            [t for t in tickets if t.get("xero") == "invoiced"])
+
+
+def format_label_fix(repo: str, labelled_missing: list[dict]) -> str:
+    lines = [f"  #{t['number']} {t['title']} — {', '.join(t.get('invoices', []))}"
+             for t in labelled_missing]
+    nums = " ".join(str(t["number"]) for t in labelled_missing)
+    return (f"{len(labelled_missing)} ticket(s) already invoiced in Xero but missing the "
+            f"`invoiced` GitHub label (label drift, not unbilled work):\n" + "\n".join(lines)
+            + f"\nFix: one call per ticket — gh issue edit <N> --repo {repo} --add-label invoiced  (N in: {nums})")
 
 
 def open_tickets_touched_this_session(cwd: str) -> list[str]:
