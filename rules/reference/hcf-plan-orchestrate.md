@@ -36,6 +36,28 @@ When the user (or another skill) asks for plan orchestration:
 - **For per-domain agent guidance** (codegraph, graphiti, …): the wire installs `.claude/<domain>.md` playbooks and a single fenced section in `.claude/CLAUDE.md` pointing to them. HCF's default agents (devils-advocate, tdd-worker, standards-enforcer) auto-load CLAUDE.md and follow the pointers — they consult the right playbook for the right question.
 - **Non-Magento projects** (Leaf PHP, etc.): `/hcf:plan-orchestrate` is fine. Wire is optional; only run `/pb-hcf:wire` if the project benefits from any of the wired playbooks (graphiti always applies; codegraph is Magento-only).
 
+## Security-quorum FAIL / NEEDS-REVIEW = owner gate (hard stop)
+
+Owner-directed 2026-09-24 (pvcpipesupplies #462), adopted fleet-wide 2026-09-26. Overrides HCF's post-implementation "fix and re-run" cadence **for `security-quorum` only** — simplify-pass, codegraph-reviewer, graphiti-reviewer etc. are unaffected.
+
+On a `FAIL` or `NEEDS-REVIEW` verdict the orchestrator STOPS. No remediation task is written or run until the owner explicitly says go. Present the full result, uncompressed:
+
+- Verdict + per-angle vote table (static / adversarial / defensive, R1 → R2, each rationale).
+- Every finding with `file:line` and the impact reasoning.
+- Dissents verbatim, including severity splits — never flatten a split into one number.
+- Findings the quorum labels uncorroborated / unrebutted, with that label.
+- What the quorum says is genuinely CLOSED, next to what remains.
+
+Then offer options with trade-offs. The owner decides what gets fixed, ticketed, or accepted in writing. Re-running the quorum after an owner-approved fix is fine; choosing *what* to fix is not the agent's call. `PASS-WITH-NOTES`: show the notes, do not auto-remediate them; the run may continue.
+
+**Scope = the change.** The quorum judges the security implications of the current plan / code / build only — code the change adds or modifies, or pre-existing code it newly reaches, exposes or worsens. Pre-existing holes it merely passes by never fail the change: out-of-scope critical/high findings are raised as a GitHub issue (label `security-quorum`, assigned to the owner) and listed in the report; out-of-scope medium/low are dropped. Those tickets need no owner go-ahead and are never worked inside the plan.
+
+Why: in one session (#462) the quorum found real issues but its suggested fixes (1) passed unconditionally for every guest quote, (2) patched the wrong caller — 0 of 8 entry points covered, (3) would have replaced a working, owner-chosen retry design. Quorum is good at finding, not reliably right about fixing.
+
+## Workers never dump Magento config
+
+tdd-workers (and any agent in a plan run) never run `bin/magento app:config:dump`, `app:config:import`, or `config:set --lock-config` / `--lock-env`. Read `app/etc/env.php` with the Read tool or `php -r`, never by dumping. A dump rewrites `app/etc/config.php` into a full system/scopes/themes export (carrying keys, locking every admin field on deploy) and strips values out of `env.php` — pvcpipesupplies #465 (2026-09-22) nearly committed exactly that. Deterministically enforced by `hooks/magento-config-dump-guard.sh`; this line exists so workers don't burn a turn discovering the block.
+
 ## Open concern — test deferral
 
 The retired wrapper deferred all full-suite test execution to plan-end. HCF default has tdd-worker run the full suite at end of EACH task, and the orchestrator run the full suite again after the post-implementation pipeline. Under parallel worker dispatch, those full-suite runs collide on shared resources (MariaDB rows, Redis cache, OpenSearch indexes, Playwright sessions, `var/` artefacts, search indexers).
