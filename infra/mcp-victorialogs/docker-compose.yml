@@ -1,0 +1,23 @@
+# Fleet log-query MCP (host service, like graphiti-mcp on :8765).
+# One stateless mcp-victorialogs in streamable-HTTP mode, pointed at the PUBLIC
+# Caddy endpoint of the droplet (never at victorialogs:9428 directly -- Caddy is
+# what enforces tenancy). It holds NO token: each MCP client sends its own
+# `Authorization: Bearer <read token>` which is passed through to Caddy, and
+# Caddy maps that token to exactly one tenant (e.g. pps uat = 1:2). A client
+# with no/unknown token gets 403 on every query.
+# Setup/rationale: README.md here + ~/claude-skills-central/infra/do-bugsink/README.md.
+services:
+  mcp-victorialogs:
+    image: ghcr.io/victoriametrics/mcp-victorialogs:v1.9.0
+    container_name: mcp-victorialogs
+    restart: always
+    environment:
+      VL_INSTANCE_ENTRYPOINT: "https://logs.proxiblue.com.au"
+      MCP_SERVER_MODE: "http"
+      MCP_LISTEN_ADDR: ":8081"
+      MCP_PASSTHROUGH_HEADERS: "Authorization"
+      # Tenant comes from the token at Caddy; client-side tenant params are ignored there.
+      VL_DEFAULT_TENANT_ID: "0:0"
+      MCP_LOG_LEVEL: "info"
+    ports:
+      - "8766:8081"

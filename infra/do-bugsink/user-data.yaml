@@ -4,7 +4,10 @@
 # docker, boots bugsink behind caddy (auto-TLS), and enables unattended
 # security upgrades. Nothing to run by hand on the server.
 #
-# Droplet: Basic 1vCPU/1GB, Ubuntu 24.04 LTS. DNS: bugsink.proxiblue.com.au -> droplet IP.
+# Droplet: Basic 1vCPU/2GB (resized from 512MB by 2026-09-30), Ubuntu 24.04 LTS.
+# Also hosts VictoriaLogs (logs.proxiblue.com.au) and the quietbookcut.com vhost
+# (pdftovec uvicorn socket at /run/pdftovec, managed outside this file).
+# DNS: bugsink.proxiblue.com.au + logs.proxiblue.com.au -> droplet IP.
 # NOTE 2026-09-19: the live hostname is bugsink.proxiblue.com.au. It was
 # originally deployed as errors.proxiblue.com.au and renamed; the old name still
 # has an A record to this same droplet but no cert, so it fails the TLS handshake
@@ -30,22 +33,49 @@ write_files:
             PORT: "8000"
             BASE_URL: "https://bugsink.proxiblue.com.au"
             BEHIND_HTTPS_PROXY: "true"
-            # No email by design -- see README "Notification model".
+            # No email on purpose. This sink is queried by agents (issue-sentinel
+            # post-batch, the investigation protocol on any runtime error); it is not a
+            # notification system, and the operator does not want report mail
+            # (decision 2026-09-25). With EMAIL_HOST unset, bugsink uses
+            # QuietConsoleEmailBackend: alert tasks still queue and are then dropped
+            # with "Email is not set up, the following was not sent" in the log. That
+            # line is EXPECTED here, not a fault to chase.
           volumes:
             - bugsink_data:/data
           expose:
             - "8000"
+        victorialogs:
+          image: victoriametrics/victoria-logs:v1.52.0
+          restart: always
+          command:
+            - -storageDataPath=/vlogs
+            - -retentionPeriod=30d
+            - -retention.maxDiskSpaceUsageBytes=20GiB
+            - -memory.allowedPercent=60
+            - -httpListenAddr=:9428
+          mem_limit: 600m
+          volumes:
+            - vlogs_data:/vlogs
+          expose:
+            - "9428"
         caddy:
           image: caddy:2
           restart: always
+          environment:
+            LOGS_W_PPS_UAT: "${LOGS_W_PPS_UAT:?}"
+            LOGS_W_PPS_PROD: "${LOGS_W_PPS_PROD:?}"
+            LOGS_R_PPS_UAT: "${LOGS_R_PPS_UAT:?}"
+            LOGS_R_PPS_PROD: "${LOGS_R_PPS_PROD:?}"
           ports:
             - "80:80"
             - "443:443"
           volumes:
             - /opt/bugsink/Caddyfile:/etc/caddy/Caddyfile:ro
+            - /run/pdftovec:/run/pdftovec
             - caddy_data:/data
             - caddy_config:/config
       volumes:
+        vlogs_data:
         bugsink_data:
         caddy_data:
         caddy_config:
@@ -55,9 +85,60 @@ write_files:
           reverse_proxy bugsink:8000
       }
 
+      quietbookcut.com, www.quietbookcut.com {
+          encode gzip
+          reverse_proxy unix//run/pdftovec/uvicorn.sock
+      }
+
+      logs.proxiblue.com.au {
+      	@w_pps_uat {
+      		path /insert/*
+      		header Authorization "Bearer {$LOGS_W_PPS_UAT}"
+      	}
+      	@w_pps_prod {
+      		path /insert/*
+      		header Authorization "Bearer {$LOGS_W_PPS_PROD}"
+      	}
+      	@r_pps_uat {
+      		path /select/logsql/*
+      		header Authorization "Bearer {$LOGS_R_PPS_UAT}"
+      	}
+      	@r_pps_prod {
+      		path /select/logsql/*
+      		header Authorization "Bearer {$LOGS_R_PPS_PROD}"
+      	}
+      	handle @w_pps_uat {
+      		request_header AccountID 1
+      		request_header ProjectID 2
+      		request_header -Authorization
+      		reverse_proxy victorialogs:9428
+      	}
+      	handle @w_pps_prod {
+      		request_header AccountID 1
+      		request_header ProjectID 3
+      		request_header -Authorization
+      		reverse_proxy victorialogs:9428
+      	}
+      	handle @r_pps_uat {
+      		request_header AccountID 1
+      		request_header ProjectID 2
+      		request_header -Authorization
+      		reverse_proxy victorialogs:9428
+      	}
+      	handle @r_pps_prod {
+      		request_header AccountID 1
+      		request_header ProjectID 3
+      		request_header -Authorization
+      		reverse_proxy victorialogs:9428
+      	}
+      	handle {
+      		respond 403
+      	}
+      }
+
 runcmd:
   - curl -fsSL https://get.docker.com | sh
-  # 1GB swap: the droplet is 512MB and bugsink alone sits at ~405MB. Without
+  # 1GB swap: added when the droplet was 512MB (bugsink ~405MB). Without
   # swap the kernel OOM-kills bugsink's own snappea ingest worker on every
   # boot and events stop being digested (observed 2026-09-25).
   - fallocate -l 1G /swapfile

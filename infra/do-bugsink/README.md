@@ -7,10 +7,11 @@
 > agent API token are unchanged. **Both leaked secrets rotated 2026-09-25** and
 > the old superuser password verified rejected.
 >
-> The droplet is **512 MB, not the 1 GB this doc originally specified** — bugsink
-> alone sits at ~405 MB and was OOM-killing its own `snappea` ingest worker on
-> every restart. 1 GB swap added 2026-09-25 (`/swapfile`, in `/etc/fstab`,
-> `vm.swappiness=20`). Resize to the 1 GB plan if ingest volume grows.
+> The droplet was **512 MB** at restore (bugsink ~405 MB, OOM-killing its own
+> `snappea` worker until 1 GB swap was added 2026-09-25). **Resized to 2 GB by
+> 2026-09-30** (1967 MB, ~1.3 GB free, 48 GB disk) — it now also runs
+> **VictoriaLogs** at `https://logs.proxiblue.com.au` (see "Log store" below).
+> Swap stays.
 >
 > Note: cloud-init user-data was NOT applied at create; setup was executed
 > over SSH instead — the user-data.yaml here remains the rebuild recipe.
@@ -105,15 +106,57 @@ notification. Whether that closes the requirement or leaves it open is the
 operator's call — do not silently mark #366 done on the strength of capture
 alone.
 
+## Log store — VictoriaLogs (added 2026-09-30)
+
+Server/app logs (not exceptions — those stay in bugsink) pushed from Hypernode
+by Vector (pps plan `.claude/plans/log-shipping/`), queried by agents through
+the fleet `logs-uat` / `logs-prod` MCP entries (host service
+`../mcp-victorialogs/`). Agents never SSH to live to read logs.
+
+- `victorialogs:v1.52.0`, `mem_limit 600m`, `-retentionPeriod=30d`,
+  `-retention.maxDiskSpaceUsageBytes=20GiB`, volume `vlogs_data`. Not published;
+  only reachable through caddy.
+- **Tenancy is enforced by caddy from the bearer token.** Each token maps to
+  exactly one tenant (`AccountID:ProjectID`); caddy overwrites the tenant
+  headers, so a client cannot pick another tenant. Write tokens only match
+  `/insert/*`, read tokens only `/select/logsql/*`; everything else is 403
+  (VMUI, `/select/tenant_ids`, `/metrics` included).
+
+  | tenant | project/env | write token var | read token var |
+  |---|---|---|---|
+  | 1:2 | pps uat | `LOGS_W_PPS_UAT` | `LOGS_R_PPS_UAT` |
+  | 1:3 | pps prod | `LOGS_W_PPS_PROD` | `LOGS_R_PPS_PROD` |
+  | 1:1 | (reserved: pps dev, not shipped) | – | – |
+
+- **Tokens** live in `/opt/bugsink/.env` (compose `:?` refs → caddy env →
+  `{$VAR}` in the Caddyfile) and on the host in `~/.config/pb-logs/tokens.env`
+  (0600). Never in this public repo. Mint for a new tenant:
+  `echo "LOGS_W_X=$(openssl rand -hex 32)"` (+ `LOGS_R_X`), append to both
+  files, add the two matchers/handles to the Caddyfile block, validate, `up -d`.
+  Write tokens go into that project's deploy config (pps:
+  `app/etc/env.{uat,live}.php` `log_shipping.ingest_token`); read tokens into
+  that project's `.ddev/docker-compose.ai.mounts.yaml` as
+  `LOGS_READ_TOKEN_UAT` / `LOGS_READ_TOKEN_PROD`.
+- **Apply safely** (a bad Caddyfile takes bugsink down with it): validate
+  first — `docker run --rm --env-file .env -v $PWD/Caddyfile.new:/etc/caddy/Caddyfile:ro caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`
+  — then swap in and `docker compose up -d`.
+- **Gotcha:** `/insert/jsonline` needs `Content-Type: application/stream+json`.
+  With curl's default form content-type VictoriaLogs answers **200 and ingests
+  nothing** (`vl_bytes_ingested_total` stays 0).
+- Verified 2026-09-30: uat token sees only 1:2, prod only 1:3, spoofed
+  `AccountID`/`ProjectID` headers ignored both ways, write↛read, read↛write,
+  no/wrong token 403 — via curl and via the MCP.
+
 ## Ops notes
 
 - SQLite in the `bugsink_data` docker volume — **backups DONE 2026-08-03:**
   operator enabled droplet backups in the DO panel (covers the volume)
 - OS security patches: unattended-upgrades enabled by cloud-init
-- **Swap is load-bearing on this 512 MB droplet** — without it the snappea
-  ingest worker is OOM-killed and events silently stop being digested.
-  Check with `swapon --show` after any rebuild; a rebuild from
-  `user-data.yaml` does NOT create it.
+- **Swap** was load-bearing at 512 MB (snappea OOM); kept at 2 GB as headroom
+  for bugsink + VictoriaLogs. `user-data.yaml` runcmd creates it on rebuild;
+  check with `swapon --show`.
+- `quietbookcut.com` vhost + `/run/pdftovec` mount also live on this box
+  (pdftovec uvicorn service is managed outside this repo).
 - Secrets: `.bugsink-secret` (Django SECRET_KEY) + `.admin-password` live here
   gitignored, mode 600 — copy to password manager
 - Retention: bugsink defaults keep event counts bounded per project
