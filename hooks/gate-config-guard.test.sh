@@ -79,6 +79,26 @@ bashcmd 0 "unrelated commit"    'git commit -m "fix: something"'
 bashcmd 0 "unrelated redirect"  'echo hi > /tmp/scratch.txt'
 bashcmd 0 "plain echo"          'echo hello'
 
+# --- regression: a MENTION (read, or a variable holding the path) must pass,
+# even alongside an unrelated write elsewhere on the same command line -------
+bashcmd 0 "var assignment then read" \
+  'EF=.git/claude-test-gate/evidence.jsonl; tail -5 "$EF" | cut -c1-200'
+bashcmd 0 "var assignment, read, redirect output elsewhere" \
+  'EF=.git/claude-test-gate/evidence.jsonl; tail -5 "$EF" | cut -c1-200 > /tmp/out.txt'
+bashcmd 0 "read with redirect targeting elsewhere, not the protected file" \
+  'git diff .claude/test-gate.json > /tmp/out.txt'
+bashcmd 0 "read then unrelated rm elsewhere" \
+  'cat .claude/rules-disable; rm /tmp/scratch.txt'
+bashcmd 0 "read then unrelated mv elsewhere" \
+  'cat .claude/test-gate.json; mv /tmp/a /tmp/b'
+bashcmd 0 "read then unrelated cp elsewhere" \
+  'grep enabled .claude/rules-disable; cp /tmp/a /tmp/b'
+# same shape, but the write genuinely targets the protected path — must still block
+bashcmd 2 "read then write to the SAME protected path" \
+  'cat .claude/rules-disable; rm .claude/rules-disable'
+bashcmd 2 "redirect genuinely targets the protected path" \
+  'echo x > .claude/test-gate.json'
+
 # --- HOST SCOPING — host session is the guard maintainer, never blocked ------
 hostcmd 0 "host: edit rules-disable" \
   '{"tool_name":"Edit","tool_input":{"file_path":".claude/rules-disable","new_string":"x"}}'
@@ -90,11 +110,17 @@ hostcmd 0 "host: bash append rules-disable" \
 # heredoc BODY documents its own .claude/rules-disable opt-out line.
 hostcmd 0 "host: heredoc body mentions rules-disable" \
   '{"tool_name":"Bash","tool_input":{"command":"cat > hooks/new-guard.sh <<EOF\ngrep -qx new-guard \"$T/.claude/rules-disable\" && exit 0\nEOF"}}'
-# Same command from a container is still blocked (conservative, false positive
-# accepted there — containers run unsupervised).
-bashcmd 2 "container: heredoc body mentions rules-disable" \
+# Same command from a container: fixed 2026-10-01 — the heredoc is written to
+# hooks/new-guard.sh (unrelated), and the BODY only mentions rules-disable
+# inside a grep, so it no longer false-positives in containers either.
+bashcmd 0 "container: heredoc body mentions rules-disable, writes elsewhere" \
   'cat > hooks/new-guard.sh <<EOF
 grep -qx new-guard "$T/.claude/rules-disable" && exit 0
+EOF'
+# A heredoc genuinely redirected INTO a protected file must still block.
+bashcmd 2 "container: heredoc redirected into protected file" \
+  'cat <<EOF > .claude/rules-disable
+some-guard
 EOF'
 
 echo "gate-config-guard tests: $PASS passed, $FAIL failed"

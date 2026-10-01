@@ -92,9 +92,19 @@ fi
 
 # --- 2. detached launch of a test/build run ----------------------------------
 TESTISH='(playwright|phpunit|vendor/bin/(phpunit|phpstan|psalm|pest)|(npm|yarn|pnpm)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|codecept|bin/magento[[:space:]]+dev:tests)'
-if echo "$CMD" | grep -qiE "$TESTISH"; then
-  if echo "$CMD" | grep -qE '&[[:space:]]*($|[;|)]|[[:space:]]*#)' \
-     || echo "$CMD" | grep -qE '(^|[;&|[:space:]])nohup[[:space:]]'; then
+# Scan text excludes heredoc bodies (data, not commands — a python patch
+# script mentioning phpunit was blocked as a "detached test run", 2026-10-01)
+# and the non-detaching ampersands `&&`, `>&`, `&>`, which a line-final
+# `&&` or `2>&1)` otherwise matches.
+SCAN=$(printf '%s\n' "$CMD" | awk '
+  inh { if ($0 ~ "^[[:space:]]*" tag "[[:space:]]*$") inh=0; next }
+  { print }
+  match($0, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*/) {
+    t=substr($0, RSTART, RLENGTH); sub(/^<<-?[[:space:]]*["'"'"']?/, "", t); tag=t; inh=1
+  }' | sed -E 's/&&|>&|&>//g')
+if echo "$SCAN" | grep -qiE "$TESTISH"; then
+  if echo "$SCAN" | grep -qE '&[[:space:]]*($|[;|)]|[[:space:]]*#)' \
+     || echo "$SCAN" | grep -qE '(^|[;&|[:space:]])nohup[[:space:]]'; then
     explain "detached test run." \
       "A backgrounded run outlives this tool call and takes its exit code" \
       "with it, leaving you nothing trustworthy to wait on. Run it in the" \

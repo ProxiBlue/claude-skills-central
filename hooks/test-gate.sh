@@ -258,23 +258,12 @@ rel_gate() {
   ntre=""
   [ -f "$CFG" ] && ntre=$(jq -r '(.relevance.no_test_ok // []) | join("|")' "$CFG" 2>/dev/null)
 
-  # passing runs at the current state; a run with no explicit test-file /
-  # --filter target is a broad whole-suite run and covers every candidate
+  # passing runs at the current state. Coverage is decided per candidate by
+  # tg_run_covers: runner kind must match the test's kind (phpunit never
+  # covers a .spec.ts), a broad run covers its whole kind, a targeted run
+  # covers the files/dirs/globs it named and its --filter regex matches.
   runs=$(jq -r --arg h "$HASH" \
     'select(.type=="test" and .state==$h and .exit_code==0) | .cmd' "$EF" 2>/dev/null | sort -u)
-  broad=0; tcmds=""
-  while IFS= read -r rc; do
-    [ -z "$rc" ] && continue
-    if printf '%s\n' "$rc" | tr ' \t' '\n\n' \
-        | grep -qE '(Test\.php|\.(spec|test)\.[a-z]+)$|^--filter'; then
-      tcmds="$tcmds$rc
-"
-    else
-      broad=1
-    fi
-  done <<EOF
-$runs
-EOF
 
   tests=$(tg_test_files "$ROOT")
   noexist=""; norun=""
@@ -283,23 +272,30 @@ EOF
     if [ -n "$ntre" ] && printf '%s\n' "$f" | grep -qE "$ntre"; then continue; fi
     cands=$(tg_candidate_tests "$ROOT" "$f" "$tests")
     if [ -z "$cands" ]; then
+      # a page object / locator / fixture no spec references yet is not
+      # itself executable — nothing to demand
+      tg_is_test_support "$f" && continue
       noexist="${noexist}    $f
 "
       continue
     fi
-    [ "$broad" = "1" ] && continue
     hit=""
     while IFS= read -r c; do
       [ -z "$c" ] && continue
-      cb="${c##*/}"
-      if printf '%s' "$tcmds" | grep -qF "${cb%.*}"; then hit=1; break; fi
+      while IFS= read -r rc; do
+        [ -z "$rc" ] && continue
+        if tg_run_covers "$ROOT" "$rc" "$c"; then hit=1; break; fi
+      done <<EOF
+$runs
+EOF
+      [ -n "$hit" ] && break
     done <<EOF
 $cands
 EOF
     if [ -z "$hit" ]; then
-      # `--filter Foo` style: the source stem in a targeted cmd also counts
+      # `--filter Foo` naming the SOURCE class also counts (php only)
       sb="${f##*/}"; sb="${sb%.*}"
-      [ -n "$sb" ] && printf '%s' "$tcmds" | grep -qF "$sb" && hit=1
+      if [ -n "$sb" ] && printf '%s\n' "$runs" | grep -E -- '--filter' | grep -qF "$sb"; then hit=1; fi
     fi
     if [ -z "$hit" ]; then
       norun="${norun}    $f
@@ -363,12 +359,60 @@ fi
 
 [ -n "$PASSED" ] && exit 0
 
+# --- diagnostics: what evidence exists and why it does not count ------------
+# (pps #519: four blocked-commit dumps of 45 file paths each, none saying
+# that the runs HAD been recorded — at a different state hash.)
+evidence_report() {
+  echo "Evidence on record (newest last):"
+  if [ -z "$EF" ] || [ ! -f "$EF" ]; then
+    echo "    none — no test run has been recorded in this repo."
+  else
+    local cur other
+    cur=$(jq -r --arg h "$HASH" \
+      'select(.type=="test" and .state==$h) | "\(.ts) \(.family // "unit") exit=\(.exit_code) \(.cmd)"' \
+      "$EF" 2>/dev/null | tail -6)
+    other=$(jq -r --arg h "$HASH" 'select(.type=="test" and .state!=$h) | .ts' "$EF" 2>/dev/null | wc -l)
+    if [ -n "$cur" ]; then
+      echo "  at the CURRENT state:"
+      while IFS= read -r l; do
+        [ -z "$l" ] && continue
+        local c="${l#* * * }" sc="" seg base
+        base=$(tg__cmd_basedir "$ROOT" "$c")
+        while IFS= read -r seg; do
+          [ -z "$seg" ] && continue
+          sc="$sc$(tg_segment_kind "$seg")/$(tg_segment_scope "$ROOT" "$base" "$seg") "
+        done <<EOF
+$(tg_runner_segments "$c")
+EOF
+        printf '    %s  [%s]\n' "$(printf '%s' "$l" | cut -c1-150)" "${sc% }"
+      done <<EOF
+$cur
+EOF
+    else
+      echo "  at the CURRENT state: none."
+    fi
+    if [ "$other" -gt 0 ]; then
+      echo "  $other older record(s) at OTHER states — invalidated because tracked/untracked"
+      echo "  files changed after those runs (plan bookkeeping, new tests, staging tidy-ups)."
+    fi
+  fi
+  echo "  Never recorded at all: runs piped without pipefail, runs the harness moved to"
+  echo "  the background, runs inside a wrapper script, and chains where any part failed."
+  echo ""
+}
+
 # --- block: relevance layer --------------------------------------------------
 if [ -n "$REL_FAIL" ]; then
   {
     echo "BLOCKED by test-gate.sh (relevance layer): git $OP — changed code has no test that specifically covers it (or that test was not run)."
     echo ""
     printf '%s\n' "$REL_FAIL"
+    evidence_report
+    echo "Coverage rules: a run covers a test only if its runner kind matches"
+    echo "(phpunit -> *Test.php, playwright -> *.spec.*, node --test/jest/vitest -> *.test.*)."
+    echo "Within a kind: no filter/path args = whole kind; a directory arg covers tests"
+    echo "under it; a --filter regex covers tests whose class name or path it matches."
+    echo ""
     echo "What to do:"
     echo "  1. Files with NO test: write one FIRST (mapped location, e.g."
     echo "     Model/Foo.php -> Test/Unit/Model/FooTest.php, foo.ts -> foo.spec.ts),"
@@ -421,6 +465,7 @@ fam_missing() {
     echo "$FILE_LIST"
   fi
   echo ""
+  evidence_report
   echo "What to do:"
   N=1
   if [ -z "$MISSING_FAMS" ] || fam_missing unit; then

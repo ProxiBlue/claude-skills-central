@@ -45,5 +45,15 @@ fam ""     "non-test phar is not swept in"    "php box.phar compile"
 fam "e2e unit" "phpunit.phar && playwright test (sort -u orders alphabetically)" \
   "php dev/phpunit.phar --testsuite Unit && npx playwright test"
 
+
+fam "unit" "node --test glob is a unit run" 'node --test app/code/X/Test/Js/*.test.js'
+fam "" "node script is not a test run" 'node scripts/build.js'
+fam "" "heredoc body is not a command" $'python3 - <<\'EOF\'\nnode --test x\nvendor/bin/phpunit\nEOF'
+fam "unit" "runner after heredoc still counts" $'cat <<EOF > f\nhi\nEOF\nvendor/bin/phpunit'
+
+fam "" "quoted pipe is not a runner (pgrep probe)" "pgrep -af 'playwright|phpunit|paratest' | grep -v pgrep"
+fam "unit" "filter regex with pipe stays one segment" 'vendor/bin/phpunit --filter "Up|ProxiBlue"'
+fam "e2e" "quoted grep title with ; and |" "npx playwright test a.spec.ts -g 'x; y | z'"
+
 echo "test-gate-lib tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

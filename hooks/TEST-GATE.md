@@ -16,9 +16,10 @@ always-loaded context growth).
 |---|---|---|
 | `hooks/test-gate-lib.sh` | (sourced) | state hash, evidence path, test-runner detection |
 | `hooks/test-evidence.sh` | PostToolUse Bash | records test runs (`exit_code` + state hash) and commit blessings |
+| `hooks/test-run-shape-guard.sh` | PreToolUse Bash | blocks unrecordable runner shapes BEFORE the run: piped without pipefail, runner inside a wrapper script |
 | `hooks/test-gate.sh` | PreToolUse Bash | blocks `git commit` / `git push` without passing evidence |
 | `scripts/changed-line-coverage.sh` | (called by gate) | opt-in hollow-test catcher via clover diff coverage |
-| `hooks/test-gate-relevance.test.sh` | (test suite) | scratch-repo suite for the relevance layer (11 cases) |
+| `hooks/test-gate-relevance.test.sh` | (test suite) | scratch-repo suite for the relevance layer (22 cases) |
 
 ## How it decides
 
@@ -59,13 +60,23 @@ always-loaded context growth).
      (`Model/Foo.php` → `**/FooTest.php`, `foo.ts` → `foo.spec.ts` /
      `foo.test.ts` / `__tests__/foo.*`) with a content-grep fallback (test
      files mentioning the stem as a whole word). A changed test file is its
-     own candidate. No candidate → **block**: the agent is told to write a
-     test first, or STOP and ask the user if the file is genuinely untestable.
-   - **Did it run?** The passing evidence run at the current state must have
-     executed a candidate: a broad whole-suite run (no test-file path /
-     `--filter` in the recorded cmd) covers everything; a targeted run counts
-     only for the candidates (or source stems) it names. Tests exist but
-     weren't run → **block**: run those tests, then retry.
+     own candidate. A test-SUPPORT file (page object, locator, fixture under a
+     test dir) maps to the specs that reference it, never to itself; one no
+     spec references yet needs nothing. No candidate → **block**: the agent is
+     told to write a test first, or STOP and ask the user if the file is
+     genuinely untestable.
+   - **Did it run?** (`tg_run_covers`, reworked 2026-10-01 after pps #519)
+     Only the RUNNER segments of the recorded cmd count (`git add X &&` etc.
+     are ignored). Runner kind must match test kind: phpunit/paratest/pest ->
+     `*Test.php`; playwright/codecept -> `*.spec.*`; `node --test`/jest/vitest
+     -> `*.test.*` (+ `*.spec.*`); npm/yarn scripts -> JS kinds only. Within a
+     kind: no filter/path args = broad, covers every test of that kind; a
+     directory arg covers tests under it; a glob covers matching paths; a
+     `--filter` regex covers tests whose class name or path it matches; a
+     named file/stem covers itself. Paths resolve against a leading `cd`.
+     Tests exist but weren't run -> **block** with an evidence report: records
+     at the current state and how each segment was classified, count of
+     records invalidated by state drift, and the shapes never recorded.
    Config: `"relevance": {"mode": "block"|"warn"|"off", "no_test_ok":
    ["^app/design/"]}`. Env kill-switch (user-only, pre-session):
    `CLAUDE_TEST_GATE_RELEVANCE=off|warn`.
@@ -145,6 +156,13 @@ implementation HCF agent. When a project proves the loop works, promote to a
 - Unwire the hook lines in settings.json — last resort.
 
 ## Known limits (honest list)
+
+- Fixed 2026-10-01 (pps #519): a run the harness auto-moved to the background
+  fired PostToolUse as a SUCCESS (`tool_response.backgroundTaskId`,
+  `timedOutAfterMs`) and was recorded `exit_code 0` even though it failed. The
+  recorder now refuses any backgrounded or interrupted run.
+- Heredoc bodies are stripped before runner detection (`tg_strip_heredocs`) —
+  a doc/patch heredoc mentioning `phpunit` is not a test run.
 
 - **Harness exit-code model (v2.1.198, verified by live payload probe
   2026-08-01)**: PostToolUse Bash fires only for exit-0 commands and the

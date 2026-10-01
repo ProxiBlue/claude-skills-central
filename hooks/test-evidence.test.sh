@@ -56,5 +56,21 @@ t 0 0 "grep mentions phpunit"    'git status | grep phpunit'
 t 0 0 "echo phpunit | cat"       'echo "run phpunit later" | cat'
 t 0 0 "plain git"                'git log --oneline -3'
 
+t 0 0 "pgrep probe with quoted runner names" "pgrep -af 'playwright|phpunit' | cut -c1-80"
+t 0 1 "quoted filter pipe, real pipe masks" 'vendor/bin/phpunit --filter "A|B" | tail -3'
+
+# --- harness auto-background / interrupt — refused (pps #519 false pass) -------
+tbg() { # tbg <desc> <tool_response-json>
+  local desc="$1" resp="$2" n=0 out
+  rm -f "$EF"
+  out=$(jq -n --arg c 'npx playwright test a.spec.ts' --arg cwd "$REPO" --argjson r "$resp" \
+    '{tool_name:"Bash", tool_input:{command:$c}, tool_response:$r, cwd:$cwd}' | bash "$HOOK" 2>/dev/null)
+  [ -f "$EF" ] && n=$(grep -c '"type":"test"' "$EF")
+  if [ "$n" = "0" ] && printf '%s' "$out" | grep -q 'background'; then PASS=$((PASS+1))
+  else FAIL=$((FAIL+1)); echo "FAIL ($desc): expected 0 records + background note, got $n — $out"; fi
+}
+tbg "auto-backgrounded run" '{"stdout":"","stderr":"","interrupted":false,"backgroundTaskId":"b1x","timedOutAfterMs":600000}'
+tbg "interrupted run"       '{"stdout":"","stderr":"","interrupted":true}'
+
 echo "test-evidence.test.sh: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

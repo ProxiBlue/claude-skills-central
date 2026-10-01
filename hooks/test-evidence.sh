@@ -81,6 +81,18 @@ FAMS=$(tg_test_families "$CMD")
 if [ -n "$FAMS" ]; then
   # non-zero only possible if a future harness adds the field — skip record
   [ "$EXIT_CODE" = "0" ] || exit 0
+  # Auto-background hole (pps #519, 2026-10-01): when a command outlives its
+  # timeout the harness moves it to the background and the tool call itself
+  # SUCCEEDS — PostToolUse fires with {backgroundTaskId, timedOutAfterMs} and
+  # no result. A 5-failure Playwright run was recorded as exit_code 0 and
+  # opened the e2e gate. The real outcome is unknowable here: record nothing.
+  BG_ID=$(echo "$INPUT" | jq -r '.tool_response.backgroundTaskId // .tool_response.timedOutAfterMs // empty' 2>/dev/null)
+  INTR=$(echo "$INPUT" | jq -r '.tool_response.interrupted // false' 2>/dev/null)
+  if [ -n "$BG_ID" ] || [ "$INTR" = "true" ]; then
+    jq -cn --arg msg "test-gate: evidence NOT recorded — this test run was moved to the background (or interrupted), so its exit status never reaches the recorder. Its result cannot open the gate whether it passes or fails. Re-run it in the FOREGROUND with an explicit Bash timeout that fits (max 600000ms); split by spec file / --grep if it doesn't fit." \
+      '{hookSpecificOutput:{hookEventName:"PostToolUse",additionalContext:$msg}}' 2>/dev/null
+    exit 0
+  fi
   # Pipe-masking hole (audit 2026-09-26): `phpunit … | tail -40` exits with
   # tail's status, so a failing run still fires PostToolUse (exit 0) and was
   # recorded as passing evidence. Every recent evidence line in pps and lcd

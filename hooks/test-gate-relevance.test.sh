@@ -161,5 +161,96 @@ echo '<?php class FooTest {}' > tests/FooTest.php
 git add -A
 t 2 "mixed commit still gated" "without passing test evidence"
 
+
+# --- pps #519 regressions: runner kind, --filter regex, dirs, globs, helpers --
+
+# 14. --filter REGEX that matches the test's namespace/class -> pass
+mkrepo
+mkdir -p app/code/Up/Mod/Model app/code/Up/Mod/Test/Unit/Model
+echo '<?php class Foo {}' > app/code/Up/Mod/Model/Foo.php
+echo '<?php class FooTest {}' > app/code/Up/Mod/Test/Unit/Model/FooTest.php
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml --filter "Up|ProxiBlue"'
+t 0 "--filter regex covers matching path"
+
+# 15. --filter regex that matches nothing relevant -> block
+mkrepo
+mkdir -p app/code/Up/Mod/Model app/code/Up/Mod/Test/Unit/Model
+echo '<?php class Foo {}' > app/code/Up/Mod/Model/Foo.php
+echo '<?php class FooTest {}' > app/code/Up/Mod/Test/Unit/Model/FooTest.php
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml --filter "Other"'
+t 2 "--filter regex miss still blocks" "did NOT execute"
+
+# 16. directory argument covers tests under it
+mkrepo
+mkdir -p app/code/Up/Mod/Model app/code/Up/Mod/Test/Unit/Model
+echo '<?php class Foo {}' > app/code/Up/Mod/Model/Foo.php
+echo '<?php class FooTest {}' > app/code/Up/Mod/Test/Unit/Model/FooTest.php
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml app/code/Up'
+t 0 "directory arg covers tests under it"
+
+# 17. non-runner tokens in the chain (git add FooTest.php) don't make it targeted
+mkrepo
+mkdir -p src tests
+echo '<?php class Foo {}' > src/Foo.php
+echo '<?php class FooTest {}' > tests/FooTest.php
+echo '<?php class Bar {}' > src/Bar.php
+echo '<?php class BarTest {}' > tests/BarTest.php
+git add -A
+evidence 'git add tests/FooTest.php && vendor/bin/phpunit -c phpunit.xml'
+t 0 "git add token in chain ignored"
+
+# 18. broad phpunit run must NOT cover a .spec.ts candidate
+mkrepo
+mkdir -p src tests
+echo 'export const widget = 1;' > src/widget.ts
+echo 'import { widget } from "../src/widget";' > tests/widget.spec.ts
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml'
+t 2 "phpunit never covers .spec.ts" "did NOT execute"
+
+# 19. node --test glob covers .test.js
+mkrepo
+mkdir -p src tests
+echo 'module.exports = 1;' > src/widget.js
+echo 'require("../src/widget");' > tests/widget.test.js
+git add -A
+evidence 'node --test tests/*.test.js'
+t 0 "node --test glob covers .test.js"
+
+# 20. page object helper: covered by the spec that imports it
+mkrepo
+mkdir -p tests/pages tests/specs
+echo 'export class CheckoutPage {}' > tests/pages/checkout.page.ts
+echo 'import { CheckoutPage } from "../pages/checkout.page";' > tests/specs/checkout.spec.ts
+echo '<?php class Foo {}' > Foo.php
+echo '<?php class FooTest {}' > tests/FooTest.php
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml'
+evidence 'npx playwright test tests/specs/checkout.spec.ts'
+t 0 "helper covered by importing spec"
+
+# 21. same helper, only phpunit ran -> block (spec never executed)
+mkrepo
+mkdir -p tests/pages tests/specs
+echo 'export class CheckoutPage {}' > tests/pages/checkout.page.ts
+echo 'import { CheckoutPage } from "../pages/checkout.page";' > tests/specs/checkout.spec.ts
+echo '<?php class Foo {}' > Foo.php
+echo '<?php class FooTest {}' > tests/FooTest.php
+git add -A
+evidence 'vendor/bin/phpunit -c phpunit.xml'
+t 2 "helper needs its spec run" "checkout.page.ts"
+
+# 22. cd-relative spec path resolves against the cd dir
+mkrepo
+mkdir -p sub/tests sub/src
+echo 'export const a = 1;' > sub/src/cart.ts
+echo 'import { a } from "../src/cart";' > sub/tests/cart.spec.ts
+git add -A
+evidence 'cd sub && npx playwright test tests/cart.spec.ts'
+t 0 "cd-relative spec path"
+
 echo "relevance suite: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" = "0" ]

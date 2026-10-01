@@ -150,6 +150,26 @@
             "command": "bash /home/lucas/claude-skills-central/hooks/background-wait-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/test-run-shape-guard.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/suite-inflight-guard.sh",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -230,6 +250,16 @@
             "type": "command",
             "command": "bash /home/lucas/claude-skills-central/hooks/plugin-hooks-shell-form-guard.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/xml-wellformed-check.sh",
+            "timeout": 15
           }
         ]
       }

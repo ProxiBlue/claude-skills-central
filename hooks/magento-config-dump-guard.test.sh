@@ -68,6 +68,29 @@ cont 2 "mv over config.php"               'mv /tmp/x.php app/etc/config.php'
 cont 2 "truncate config.php"              'truncate -s 0 app/etc/config.php'
 cont 2 "git restore config.php"           'git restore app/etc/config.php'
 
+# --- LAYER 1: unrelated write op co-occurring with a config.php READ must pass
+# (regression: the sed -i / perl|python|php -e|-i branches used to match on
+# mere co-occurrence anywhere in the command, not on actually targeting
+# config.php — a read of config.php plus an unrelated write elsewhere in the
+# same command line was wrongly blocked)
+cont 0 "read config.php + unrelated sed -i elsewhere" \
+  'cat app/etc/config.php; sed -i "s/x/y/" /tmp/unrelated.txt'
+cont 0 "unrelated sed -i elsewhere + read config.php" \
+  'sed -i "s/x/y/" /tmp/unrelated.txt; cat app/etc/config.php'
+cont 0 "read config.php + unrelated php -i" \
+  'git diff app/etc/config.php && php -i'
+cont 0 "unrelated php -i + read config.php" \
+  'php -i; cat app/etc/config.php'
+cont 0 "unrelated perl -ne + read config.php" \
+  'perl -ne "print" /tmp/x; cat app/etc/config.php'
+# sed -i genuinely targeting config.php must still block
+cont 2 "sed -i genuinely targets config.php" \
+  'sed -i "s/x/y/" app/etc/config.php; echo done'
+
+# --- LAYER 1: config:set short-flag lock forms (-lc / -le) must block --------
+cont 2 "config:set -lc (short --lock-config)" 'bin/magento config:set -lc web/secure/base_url https://x/'
+cont 2 "config:set -le (short --lock-env)"    'bin/magento config:set -le some/path value'
+
 # --- LAYER 1 is container-only; host is the maintainer session ---------------
 host 0 "host: dump not blocked by layer 1" 'php bin/magento app:config:dump'
 host 0 "host: redirect not blocked"        'echo x > app/etc/config.php'

@@ -379,6 +379,26 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-run-shape-guard.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/suite-inflight-guard.sh",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -468,6 +488,16 @@
             "type": "command",
             "command": "bash /var/www/html/.claude/hooks/plugin-hooks-shell-form-guard.sh",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/xml-wellformed-check.sh",
+            "timeout": 15
           }
         ]
       }

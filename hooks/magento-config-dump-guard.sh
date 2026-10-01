@@ -120,13 +120,20 @@ if [ "$IN_CONTAINER" = "1" ]; then
   MAGENTO_ARGS=$(mcg_magento_args "$CMD")
   if printf '%s' "$MAGENTO_ARGS" | grep -qE '(^|[[:space:]])app:config:dump([[:space:]]|$)'; then
     BLOCK="app:config:dump re-partitions configuration: it rewrites app/etc/config.php as a full dump (modules + system + scopes + themes, including payment keys and encrypted third-party credentials) and strips those values out of env.php. It is not a way to read configuration."
-  elif printf '%s' "$MAGENTO_ARGS" | grep -qE '(^|[[:space:]])config:set([[:space:]]|$)' && printf '%s' "$MAGENTO_ARGS" | grep -qE -- '--lock-(config|env)'; then
-    BLOCK="config:set --lock-config / --lock-env writes the value into app/etc/config.php (or env.php) and locks the field in the admin, with the same deploy consequence as a dump: the field becomes uneditable on live."
+  elif printf '%s' "$MAGENTO_ARGS" | grep -qE '(^|[[:space:]])config:set([[:space:]]|$)' && printf '%s' "$MAGENTO_ARGS" | grep -qE -- '--lock-(config|env)|(^|[[:space:]])-l[ce]([[:space:]]|$)'; then
+    BLOCK="config:set --lock-config/-lc / --lock-env/-le writes the value into app/etc/config.php (or env.php) and locks the field in the admin, with the same deploy consequence as a dump: the field becomes uneditable on live."
   elif printf '%s' "$MAGENTO_ARGS" | grep -qE '(^|[[:space:]])app:config:import([[:space:]]|$)'; then
     BLOCK="app:config:import applies whatever app/etc/config.php currently holds. Run after an accidental dump, it makes the dump authoritative."
   elif printf '%s' "$CMD" | grep -qE 'app/etc/config\.php'; then
     # write-shaped access to app/etc/config.php
-    if printf '%s' "$CMD" | grep -qE '>[[:space:]]*[^|;&]*app/etc/config\.php|(^|[[:space:]])tee([[:space:]]+-[a-zA-Z]+)*[[:space:]]+[^|;&]*app/etc/config\.php|sed[[:space:]]+[^|;&]*-i|(^|[[:space:]])(cp|mv|rm|install|truncate|dd|shred)([[:space:]]+-[a-zA-Z-]+)*[[:space:]]+[^|;&]*app/etc/config\.php|git[[:space:]]+(restore|apply|reset)[^|;&]*app/etc/config\.php|(perl|python3?|php)[[:space:]]+-[a-zA-Z]*[ei]'; then
+    # Every alternative below requires app/etc/config.php to appear AFTER the
+    # write verb within the same clause (the [^|;&]* before it never crosses
+    # ; | &). Without that, `sed -i` and the perl/python/php -e/-i branches
+    # used to match on mere CO-OCCURRENCE anywhere in the command — e.g.
+    # `git diff app/etc/config.php && php -i` or
+    # `cat app/etc/config.php; sed -i 's/x/y/' /tmp/unrelated.txt`
+    # were blocked even though neither write touches config.php at all.
+    if printf '%s' "$CMD" | grep -qE '>[[:space:]]*[^|;&]*app/etc/config\.php|(^|[[:space:]])tee([[:space:]]+-[a-zA-Z]+)*[[:space:]]+[^|;&]*app/etc/config\.php|sed[[:space:]]+[^|;&]*-i[^|;&]*app/etc/config\.php|(^|[[:space:]])(cp|mv|rm|install|truncate|dd|shred)([[:space:]]+-[a-zA-Z-]+)*[[:space:]]+[^|;&]*app/etc/config\.php|git[[:space:]]+(restore|apply|reset)[^|;&]*app/etc/config\.php|(perl|python3?|php)[[:space:]]+-[a-zA-Z]*[ei][^|;&]*app/etc/config\.php'; then
       BLOCK="this command writes app/etc/config.php directly. That file is deploy-critical: what it contains becomes locked, non-editable configuration on live."
     fi
   fi

@@ -20,22 +20,28 @@
 #     file as invalidating, but Bash can still stomp it directly)
 #
 # Blocks (exit 2), Edit/Write: any edit/create/overwrite of a protected path.
-# Blocks (exit 2), Bash: any command that names a protected path AND carries
-#   a write-shaped token (redirection, tee, sed -i, cp/mv/install, dd, rm,
+# Blocks (exit 2), Bash: any command that TARGETS a protected path with a
+#   write-shaped token (redirection, tee, sed -i, cp/mv/install, dd, rm,
 #   truncate, git checkout/restore/apply/reset, or a scripting interpreter
-#   one-liner). Reads (cat, grep, jq without -i, git diff/log/show) pass.
+#   one-liner) — the protected path must appear after the write verb within
+#   the same ; / && / || / | clause. Reads (cat, grep, jq without -i, git
+#   diff/log/show), a bare MENTION of the path (e.g. a shell variable
+#   assignment: EF=.../evidence.jsonl; tail "$EF"), and an unrelated write
+#   elsewhere on the same command line (git diff .claude/test-gate.json >
+#   /tmp/out.txt — the `>` targets /tmp, not the protected file) all pass.
 #
 # Scope: CONTAINER SESSIONS ONLY (Lucas, 2026-09-18).
 # The host session is where the guard layer itself is authored and
 # maintained — hooks, rules, settings wiring. Blocking it there blocks the
-# maintainer, not an unsupervised agent, and it fires on false positives
-# that make guard work impossible: the Bash branch greps the WHOLE command
-# string, so a heredoc whose BODY merely mentions .claude/rules-disable
-# (which every new guard hook does, documenting its own opt-out) is blocked
+# maintainer, not an unsupervised agent. It also used to fire on a false
+# positive that made guard work impossible: the Bash branch greps the WHOLE
+# command string, so a heredoc whose BODY merely mentions .claude/rules-disable
+# (which every new guard hook does, documenting its own opt-out) was blocked
 # even though it writes nothing protected. Demonstrated 2026-09-18: a test
-# script for this very hook was blocked for containing the string.
-# So: host exits early. Containers — where plan-orchestrate workers and
-# cron agents run unsupervised — keep the full block.
+# script for this very hook was blocked for containing the string. The
+# same-clause TARGET requirement above (added 2026-10-01) fixes this for
+# both host and container — but host still exits early regardless, since
+# the maintainer session should never be a subject of this hook at all.
 #
 # Deliberately NO bypass of any kind INSIDE A CONTAINER:
 #   - no rules-disable opt-out (this hook guards rules-disable itself —
@@ -110,7 +116,39 @@ case "$TOOL" in
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // .command // ""' 2>/dev/null)
     [ -z "$CMD" ] && exit 0
     echo "$CMD" | grep -qE "$PROTECTED_CMD" || exit 0
-    WRITE_OPS='(>>?[^&]|<<<|[[:space:]]tee([[:space:]]|$)|sed[[:space:]]+-i|cp[[:space:]]|mv[[:space:]]|install[[:space:]]|dd[[:space:]]+of=|truncate[[:space:]]|rm[[:space:]]|unlink[[:space:]]|git[[:space:]]+(checkout|restore|apply|reset)|jq[[:space:]].*-i|python[0-9.]*[[:space:]]|perl[[:space:]]|node[[:space:]]|patch[[:space:]])'
+    # A mere MENTION of a protected path isn't a write — a plain read (cat,
+    # grep, jq without -i, git diff/log/show), or a shell variable merely
+    # holding the path (EF=.git/claude-test-gate/evidence.jsonl; tail "$EF"),
+    # must pass. Each write-shaped alternative below therefore requires the
+    # protected path to appear AFTER the write verb, within the same clause
+    # (the [^|;&]* in TARGET never crosses ; | &). Without that requirement
+    # the old flat regex matched on mere co-occurrence anywhere on the
+    # command line — e.g. `git diff .claude/test-gate.json > /tmp/out.txt`
+    # (the `>` redirects the diff elsewhere, not into the protected file) or
+    # `cat .claude/rules-disable; rm /tmp/scratch.txt` (an unrelated rm after
+    # a read) were wrongly blocked.
+    # Note: TARGET deliberately does NOT reuse $PROTECTED_CMD's own leading
+    # "(^|[^A-Za-z0-9_])" boundary — when embedded right after a write verb's
+    # own [[:space:]]+ (which already consumed the single separating space),
+    # that boundary alternative would itself consume the path's leading "."
+    # and leave nothing for the literal "\.claude" that must follow it,
+    # breaking the match entirely. The verb + [[:space:]]+/[^|;&]* before
+    # TARGET already guarantees a non-identifier boundary, so only the
+    # trailing boundary is needed here.
+    PATH_CORE='\.claude/(test-gate\.json|perf-gate\.json|rules-disable)([^A-Za-z0-9_.]|$)'
+    PATH_CORE="${PATH_CORE}"'|claude-test-gate/evidence\.jsonl([^A-Za-z0-9_.]|$)'
+    TARGET="[^|;&]*(${PATH_CORE})"
+    WRITE_OPS="(>>?[[:space:]]*${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|<<<${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|[[:space:]]tee([[:space:]]+-[a-zA-Z]+)*[[:space:]]+${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|sed[[:space:]]+-i${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|(cp|mv|install)[[:space:]]+${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|dd[[:space:]]+of=${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|truncate[[:space:]]+${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|(rm|unlink)[[:space:]]+${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|git[[:space:]]+(checkout|restore|apply|reset)${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|jq[[:space:]][^|;&]*-i${TARGET}"
+    WRITE_OPS="${WRITE_OPS}|(python[0-9.]*|perl|node|patch)[[:space:]]+${TARGET})"
     echo "$CMD" | grep -qE "$WRITE_OPS" && block "write to gate config detected: '$CMD'"
     ;;
 esac

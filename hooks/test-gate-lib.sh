@@ -100,8 +100,18 @@ tg_test_files() {
 # empty output = no test known to cover this file.
 tg_candidate_tests() {
   local root="$1" f="$2" tests="$3" base stem esc out
-  if tg_is_test_path "$f"; then printf '%s\n' "$f"; return 0; fi
   [ -z "$tests" ] && tests=$(tg_test_files "$root")
+  if tg_is_test_support "$f"; then
+    # page object / locator / fixture: covered by the specs that use it,
+    # never by itself (pps #519: helpers were demanded as their own "test")
+    base="${f##*/}"; stem="${base%.*}"
+    [ "${#stem}" -ge 3 ] || return 0
+    (cd "$root" 2>/dev/null && printf '%s\n' "$tests" \
+      | grep -E '(Test\.php|\.(spec|test)\.[a-z]+)$' | head -2000 \
+      | tr '\n' '\0' | xargs -0 -r grep -lF -- "$stem" 2>/dev/null | head -10)
+    return 0
+  fi
+  if tg_is_test_path "$f"; then printf '%s\n' "$f"; return 0; fi
   [ -z "$tests" ] && return 0
   base="${f##*/}"; stem="${base%.*}"
   [ -z "$stem" ] && return 0
@@ -180,6 +190,13 @@ tg__segment_is_test() {
         case "${2:-}" in dev:tests:run*) echo unit; return 0 ;; esac
         return 1 ;;
       php|npx|node|sudo|time|nice|xvfb-run)
+        # `node --test ...` is Node's built-in runner (JS units), not a wrapper
+        if [ "$base" = "node" ]; then
+          local a
+          for a in "${@:2}"; do
+            case "$a" in --test|--test=*) echo unit; return 0 ;; -*) : ;; *) break ;; esac
+          done
+        fi
         # wrapper: skip it and its option flags, re-evaluate next real token
         shift
         while [ $# -gt 0 ]; do
@@ -201,13 +218,57 @@ tg__segment_is_test() {
 # Echo the distinct families of every test-runner invocation in the command
 # string, one per line (a `phpunit && playwright test` chain yields both).
 # Empty output = not a test command.
+# Drop heredoc bodies from a command string: they are data fed to a program
+# (python patch scripts, docs), not shell commands. Without this, a doc line
+# starting `node --test …` inside `python3 - <<'EOF'` read as a test run —
+# tripping guards and able to forge an evidence record (2026-10-01).
+tg_strip_heredocs() {
+  printf '%s\n' "$1" | awk '
+    inh { if ($0 ~ "^[[:space:]]*" tag "[[:space:]]*$") inh=0; next }
+    { print }
+    match($0, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*/) {
+      t=substr($0, RSTART, RLENGTH); sub(/^<<-?[[:space:]]*["'"'"']?/, "", t); tag=t; inh=1
+    }'
+}
+
+# Split a command string into shell segments, QUOTE-AWARE. Echoes one line
+# per segment: "<op>\t<segment>", where <op> is the operator that ENDS the
+# segment (| || && ; & nl $( end). Operators inside '...' or "..." are text:
+# `pgrep -af 'a|phpunit'` is ONE segment, not a pgrep piped into a phpunit
+# runner (2026-10-01 — the old sed split recorded such a probe as a test run),
+# and `--filter "Foo|Bar"` stays one token. Heredoc bodies are dropped first.
+tg_split_segments() {
+  tg_strip_heredocs "$1" | awk 'BEGIN { RS = "\001" } {
+    s = $0; n = length(s); seg = ""; sq = 0; dq = 0
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1); nx = substr(s, i + 1, 1); pv = substr(s, i - 1, 1)
+      if (sq) { seg = seg c; if (c == "\047") sq = 0; continue }
+      if (c == "\\") { seg = seg c nx; i++; continue }
+      if (dq) { seg = seg c; if (c == "\"") dq = 0; continue }
+      if (c == "\047") { sq = 1; seg = seg c; continue }
+      if (c == "\"") { dq = 1; seg = seg c; continue }
+      op = ""
+      if (c == "|" && nx == "|") { op = "||"; i++ }
+      else if (c == "&" && nx == "&") { op = "&&"; i++ }
+      else if (c == "|") op = "|"
+      else if (c == ";") op = ";"
+      else if (c == "\n") op = "nl"
+      else if (c == "$" && nx == "(") { op = "$("; i++ }
+      else if (c == "&" && nx != ">" && pv != ">") op = "&"
+      if (op != "") { printf "%s\t%s\n", op, seg; seg = ""; continue }
+      seg = seg c
+    }
+    printf "end\t%s\n", seg
+  }'
+}
+
 tg_test_families() {
-  local cmd="$1" seg
-  while IFS= read -r seg; do
+  local op seg
+  while IFS=$'\t' read -r op seg; do
     # shellcheck disable=SC2086
     ( set -f; set -- $seg; tg__segment_is_test "$@" )
   done <<EOF | sort -u | grep .
-$(printf '%s\n' "$cmd" | sed -E 's/(\|\|)|(&&)|;|\||\$\(/\n/g')
+$(tg_split_segments "$1")
 EOF
 }
 
@@ -217,15 +278,175 @@ EOF
 # special-cased (a runner inside a substitution is already not recorded by
 # tg_test_families' `$(` split).
 tg_runner_piped() {
-  local cmd="$1" n i seg
-  local -a segs
-  cmd=${cmd//"||"/$'\x01'}
-  IFS='|' read -r -a segs <<< "$cmd"
-  n=${#segs[@]}
-  for ((i=0; i<n-1; i++)); do
-    seg=${segs[i]//$'\x01'/"||"}
-    [ -n "$(tg_test_families "$seg")" ] && return 0
+  local op seg
+  while IFS=$'\t' read -r op seg; do
+    [ "$op" = "|" ] || continue
+    # shellcheck disable=SC2086
+    ( set -f; set -- $seg; tg__segment_is_test "$@" >/dev/null ) && return 0
+  done <<EOF
+$(tg_split_segments "$1")
+EOF
+  return 1
+}
+
+# --- relevance coverage: did a recorded run execute a given test file? -------
+# Runner KIND is finer than evidence family: a phpunit run never executes a
+# .spec.ts, a playwright run never executes a FooTest.php (pps #519: any
+# unfiltered phpunit run was crediting every .spec.ts/.test.js candidate,
+# while a `--filter "Uptactics|ProxiBlue"` run that executed 1317 tests was
+# credited with none).
+
+# Echo each runner segment of a command, one per line. Non-runner segments
+# (`git add X`, `cd`, `set -o pipefail`) are dropped so their tokens can never
+# make a run look targeted.
+tg_runner_segments() {
+  local op seg
+  while IFS=$'\t' read -r op seg; do
+    # shellcheck disable=SC2086
+    ( set -f; set -- $seg; tg__segment_is_test "$@" >/dev/null ) && printf '%s\n' "$seg"
+  done <<EOF
+$(tg_split_segments "$1")
+EOF
+}
+
+# Kind of one runner segment: php | js | e2e | jsany (npm/yarn script) | other
+tg_segment_kind() {
+  local s=" $1 "
+  case "$s" in
+    *[/[:space:]]phpunit[[:space:]]*|*[/[:space:]]phpunit.phar[[:space:]]*|*[/[:space:]]paratest[[:space:]]*|\
+    *[/[:space:]]pest[[:space:]]*|*[/[:space:]]infection[[:space:]]*|*" dev:tests:run"*) echo php; return ;;
+    *[/[:space:]]playwright[[:space:]]test*|*[/[:space:]]codecept[[:space:]]*|*[/[:space:]]codeception[[:space:]]*|\
+    *[/[:space:]]behat[[:space:]]*) echo e2e; return ;;
+    *" node "*--test*|*[/[:space:]]jest[[:space:]]*|*[/[:space:]]vitest[[:space:]]*) echo js; return ;;
+    *[/[:space:]]composer[[:space:]]*) echo php; return ;;
+    *[/[:space:]]npm[[:space:]]*|*[/[:space:]]pnpm[[:space:]]*|*[/[:space:]]yarn[[:space:]]*) echo jsany; return ;;
+  esac
+  echo other
+}
+
+# Kind of a candidate test file: php | js | spec | other
+tg_test_kind() {
+  case "$1" in
+    *Test.php) echo php ;;
+    *.test.js|*.test.jsx|*.test.ts|*.test.tsx|*.test.mjs|*/__tests__/*) echo js ;;
+    *.spec.js|*.spec.jsx|*.spec.ts|*.spec.tsx|*.spec.mjs) echo spec ;;
+    *) echo other ;;
+  esac
+}
+
+tg__kind_ok() { # <run-kind> <test-kind>
+  case "$1:$2" in
+    php:php|js:js|js:spec|e2e:spec|jsany:js|jsany:spec|other:other) return 0 ;;
+  esac
+  return 1
+}
+
+# True when the path is a test-SUPPORT file (page object, locator, fixture,
+# helper under a test dir) rather than an executable test file.
+tg_is_test_support() {
+  tg_is_test_path "$1" || return 1
+  [ "$(tg_test_kind "$1")" = "other" ]
+}
+
+# Base dir (repo-relative, may be empty) a command's runner paths resolve
+# against: the first leading `cd <dir>`, made relative to <root>.
+tg__cmd_basedir() { # <root> <cmd>
+  local root="$1" d
+  d=$(printf '%s' "$2" | grep -oE '^[[:space:]]*cd[[:space:]]+[^;&|]+' | head -1 \
+    | sed -E 's/^[[:space:]]*cd[[:space:]]+//; s/[[:space:]]+$//; s/^"//; s/"$//')
+  [ -z "$d" ] && return 0
+  case "$d" in
+    "$root") d="" ;;
+    "$root"/*) d="${d#"$root"/}" ;;
+    /var/www/html) d="" ;;
+    /var/www/html/*) d="${d#/var/www/html/}" ;;
+    /*) d="" ;;
+  esac
+  printf '%s' "$d"
+}
+
+# Normalise a runner path token to repo-relative, honouring the cd base dir.
+tg__norm_path() { # <root> <basedir> <token>
+  local root="$1" base="$2" t="$3"
+  t="${t#./}"
+  case "$t" in
+    "$root"/*) t="${t#"$root"/}" ;;
+    /var/www/html/*) t="${t#/var/www/html/}" ;;
+    /*) : ;;
+    *) [ -n "$base" ] && t="$base/$t" ;;
+  esac
+  # collapse a/b/../c segments
+  while printf '%s' "$t" | grep -qE '(^|/)[^/.][^/]*/\.\./'; do
+    t=$(printf '%s' "$t" | sed -E 's#(^|/)[^/.][^/]*/\.\./#\1#')
   done
+  printf '%s' "${t%/}"
+}
+
+tg__unquote() { local t="$1"; t="${t%\"}"; t="${t#\"}"; t="${t%\'}"; t="${t#\'}"; printf '%s' "$t"; }
+
+# Classify one runner segment: echoes "broad" or "targeted". Broad = no
+# filter/grep, no test-file, glob or directory argument (a suite-wide run).
+tg_segment_scope() { # <root> <basedir> <segment>
+  local root="$1" base="$2" tok p
+  # shellcheck disable=SC2086
+  for tok in $(set -f; printf '%s\n' $3); do
+    tok=$(tg__unquote "$tok")
+    case "$tok" in
+      --filter|--filter=*|--grep|--grep=*|-g) echo targeted; return ;;
+      *Test.php|*.spec.*|*.test.*|*'*'*) echo targeted; return ;;
+      -*|*=*) continue ;;
+    esac
+    p=$(tg__norm_path "$root" "$base" "$tok")
+    [ -n "$p" ] && [ "$p" != "." ] && [ -d "$root/$p" ] && { echo targeted; return; }
+  done
+  echo broad
+}
+
+# True (exit 0) when the recorded run <cmd> executed candidate test <c>
+# (repo-relative). Per runner segment: kind must match; a broad segment covers
+# every test of its kind; a targeted one covers named files, globs,
+# directories it was pointed at, and --filter regex matches on the test's
+# class name or path.
+tg_run_covers() { # <root> <cmd> <candidate>
+  local root="$1" cmd="$2" c="$3" ck base seg sk tok p next stem rx
+  ck=$(tg_test_kind "$c")
+  base=$(tg__cmd_basedir "$root" "$cmd")
+  stem="${c##*/}"; stem="${stem%.*}"
+  while IFS= read -r seg; do
+    [ -z "$seg" ] && continue
+    sk=$(tg_segment_kind "$seg")
+    tg__kind_ok "$sk" "$ck" || continue
+    [ "$(tg_segment_scope "$root" "$base" "$seg")" = "broad" ] && return 0
+    next=""
+    # shellcheck disable=SC2086
+    for tok in $(set -f; printf '%s\n' $seg); do
+      tok=$(tg__unquote "$tok")
+      if [ "$next" = "filter" ]; then
+        next=""; rx="${tok%%::*}"
+        printf '%s\n%s\n' "$stem" "$c" | grep -qE -- "$rx" 2>/dev/null && return 0
+        continue
+      fi
+      case "$tok" in
+        --filter) next="filter"; continue ;;
+        --filter=*) rx="${tok#--filter=}"; rx="${rx%%::*}"
+          printf '%s\n%s\n' "$stem" "$c" | grep -qE -- "$rx" 2>/dev/null && return 0
+          continue ;;
+        -*|*=*) continue ;;
+      esac
+      p=$(tg__norm_path "$root" "$base" "$tok")
+      [ -z "$p" ] && continue
+      case "$p" in
+        *'*'*) [[ "$c" == $p ]] && return 0 ;;
+        *) [ "$c" = "$p" ] && return 0
+           case "$c" in "$p"/*) [ -d "$root/$p" ] && return 0 ;; esac
+           # basename / class stem named (`phpunit FooTest`, a spec given
+           # relative to a symlinked app dir)
+           case "${p##*/}" in "${c##*/}"|"$stem") return 0 ;; esac ;;
+      esac
+    done
+  done <<EOF
+$(tg_runner_segments "$cmd")
+EOF
   return 1
 }
 

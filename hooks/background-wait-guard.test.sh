@@ -76,5 +76,17 @@ RC=$?
 rm -rf "$TMP"
 [ "$RC" = 0 ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "FAIL (rules-disable opt-out): exit $RC"; }
 
+
+# heredoc bodies and non-detaching ampersands (2026-10-01 false positive)
+t 0 "heredoc body mentions phpunit &"  $'python3 - <<'EOF'
+x = "phpunit run &"
+EOF'
+t 0 "line-final && with runner"       $'cd /x &&
+vendor/bin/phpunit -c p.xml'
+t 0 "2>&1) with runner"               '(vendor/bin/phpunit 2>&1)'
+t 2 "real detach after heredoc"       $'cat <<EOF
+hi
+EOF
+npx playwright test &'
 echo "background-wait-guard tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
