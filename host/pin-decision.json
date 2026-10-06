@@ -1,6 +1,6 @@
 {
-  "fleet_target": "2.1.282",
-  "set_on": "2026-09-25",
+  "fleet_target": "2.1.291",
+  "set_on": "2026-10-06",
   "review_after_days": 21,
   "releases_behind_threshold": 20,
   "note": "Stability posture: fleet deliberately trails upstream. Lag threshold 20 = fires only on genuinely large drift, not on a fresh deliberate hold. 2.1.258 = the eval-verified version.",
@@ -28,6 +28,11 @@
     {
       "version": "2.1.282",
       "set_on": "2026-09-25",
+      "reason": "moved after rule-evals"
+    },
+    {
+      "version": "2.1.291",
+      "set_on": "2026-10-06",
       "reason": "moved after rule-evals"
     }
   ]
