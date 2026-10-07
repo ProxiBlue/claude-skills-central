@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/.gitnexus/**"
+  - "**/.ddev/pb-codegraph/**"
 ---
 
 # Codegraph-First Protocol — MANDATORY

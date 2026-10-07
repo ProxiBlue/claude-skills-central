@@ -50,7 +50,7 @@ turn red on a dead job — the dead-man switch, no watcher-of-watchers.
 
 | Component | State |
 |---|---|
-| pb-codegraph v0.2 (MIT engine + augmenter port) | direction locked 2026-07-31, in build — replaces retired GitNexus pipeline |
+| pb-codegraph v0.2 (MIT engine + augmenter port) | direction locked 2026-07-31, v0.2.0 shipped — sole code-graph; prior pipeline retired |
 | statusline-* scripts, screen→tmux swap | cosmetic; tmux swap still untested by Lucas |
 | hcf-xhgui | planned only |
 | pb-graphiti folder-ingest defaults v0.13.0 | deferred behind 3090 benchmark |
