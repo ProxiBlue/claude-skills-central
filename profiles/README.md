@@ -21,7 +21,7 @@ root files: 11 running containers bind-mount them by path.
 - Edit `settings.json` or `mcps/.mcp.json` (the masters) → run `scripts/build-profiles.sh`.
   `scripts/build-profiles.sh --check` exits 1 when a generated file is stale.
 - Never hand-edit `profiles/python/settings.json` or `mcp.json`; the next build overwrites it.
-  Python-only additions go in the `PY_*` variables at the top of `build-profiles.sh`.
+  Python-only permission additions go in `profiles/python/allow-extra.json`; drop lists are the `PY_DROP_*` variables in `build-profiles.sh`.
 - New stack (node, go…): add `profiles/<stack>/`, a `gen_<stack>_*` pair in
   `build-profiles.sh`, an agents repo, and a `--stack` branch in `onboard-project.sh`.
 

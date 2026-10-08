@@ -62,6 +62,11 @@ for p in $(grep -B4 'settings=STALE' "$RAW" | grep '^=== ' | sed 's/^=== //; s/ 
   in_scope "$p" && STALE_NOW="$STALE_NOW $p"
 done
 STALE_NOW=$(echo "$STALE_NOW" | sed 's/^ *//')
+# Generated stack profiles (profiles/<stack>/settings.json, mcp.json) must match
+# the masters — a master edit without build-profiles.sh silently strips new
+# guards from every python-profile project.
+PROFILE_STALE=$(bash "$SCRIPT_DIR/build-profiles.sh" --check 2>&1 | grep '^STALE' | sed 's|.*/profiles/|profiles/|; s| (.*||' | tr '\n' ' ')
+[ -n "$PROFILE_STALE" ] && STALE_NOW="${STALE_NOW:+$STALE_NOW }${PROFILE_STALE}(run scripts/build-profiles.sh)"
 
 if [ ! -f "$BASELINE" ]; then
   cp "$CURRENT" "$BASELINE"

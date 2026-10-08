@@ -1,0 +1,1 @@
+["Bash(uv run pytest:*)","Bash(uv run ruff:*)","Bash(uv run basedpyright:*)","Bash(uv run pip-audit:*)","Bash(uv run mutmut:*)","Bash(uv sync:*)","Bash(uv lock:*)","Bash(uv tree:*)","Bash(.venv/bin/pytest:*)","Bash(.venv/bin/ruff:*)","Bash(.venv/bin/basedpyright:*)","Bash(.venv/bin/pip list:*)","Bash(.venv/bin/pip show:*)","Bash(sqlite3:*)","mcp__mcp-debugger__*"]
