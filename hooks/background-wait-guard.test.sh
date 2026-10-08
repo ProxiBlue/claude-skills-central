@@ -40,6 +40,11 @@ t 2 "nohup phpunit no amp"   'nohup vendor/bin/phpunit --testsuite unit'
 t 2 "ddev playwright bg"     'ddev exec npx playwright test --project=chromium &'
 
 # --- legitimate foreground runs — allowed -------------------------------------
+t 2 "pytest trailing &"      'uv run pytest -q > /tmp/py.log 2>&1 &'
+t 2 "nohup python -m pytest" 'nohup python -m pytest tests'
+t 2 "uvicorn detached"       'uv run uvicorn app.main:app --port 8000 &'
+t 0 "foreground pytest"      'set -o pipefail && .venv/bin/pytest -x | tail -20'
+t 0 "pytest pgrep-free loop" 'until curl -sf localhost:8000/health; do sleep 1; done'
 t 0 "foreground playwright"  'npx playwright test tests/vt-billing.spec.ts'
 t 0 "foreground phpunit"     'vendor/bin/phpunit --filter testBillingAddressSelect'
 t 0 "foreground with redirect" 'npx playwright test > /tmp/out.log 2>&1'

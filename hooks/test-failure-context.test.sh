@@ -35,6 +35,23 @@ run 'npm run test' '2 failed, 3 passed'
 
 rm -f "/tmp/claude-invest-inject-$$"
 
+# --- fires: pytest shapes (2026-10-08) ----------------------------------------
+for o in 'FAILED tests/test_bar.py::test_x - assert 1 == 2' \
+         '=========================== short test summary info ============================' \
+         '_____ ERROR collecting tests/test_bar.py _____' \
+         '!!!!!!! Interrupted: 1 error during collection !!!!!!!' \
+         '======== 1 error in 0.12s ========' \
+         '======== 2 failed, 5 passed in 0.31s ========'; do
+  rm -f "/tmp/claude-invest-inject-$$"
+  run 'uv run pytest -q' "collected 7 items
+$o"
+  [ -n "$OUT" ] && ok || bad "expected injection on pytest output: $o"
+done
+rm -f "/tmp/claude-invest-inject-$$"
+run '.venv/bin/pytest' '======== 7 passed in 0.31s ========'
+[ -z "$OUT" ] && ok || bad "expected silent on passing pytest run"
+rm -f "/tmp/claude-invest-inject-$$"
+
 # --- silent: passing test run --------------------------------------------------
 run 'vendor/bin/phpunit' 'OK (10 tests, 10 assertions)'
 [ -z "$OUT" ] && ok || bad "expected silent on passing run, got: $OUT"

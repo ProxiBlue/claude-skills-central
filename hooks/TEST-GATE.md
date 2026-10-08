@@ -82,8 +82,16 @@ always-loaded context growth).
    `CLAUDE_TEST_GATE_RELEVANCE=off|warn`.
 5. **Arming**: gate is active only where test infrastructure exists
    (`phpunit.xml*`, `vendor/bin/phpunit`, `dev/tests/`, playwright config,
-   real `package.json` test script) or `.claude/test-gate.json` says
-   `"enabled": true`. Skills/docs/shell repos are untouched.
+   real `package.json` test script, or pytest infra: `pytest.ini`,
+   `conftest.py` / `tests/conftest.py`, `pyproject.toml` mentioning pytest,
+   `setup.cfg [tool:pytest]`, `tox.ini [pytest]`) or `.claude/test-gate.json`
+   says `"enabled": true`. Skills/docs/shell repos are untouched. `.py` joins
+   the gated code set ONLY when pytest infra is detected (a Magento repo's
+   stray helper `.py` stays ungated). Python mapping: `pkg/bar.py` ->
+   `tests/**/test_bar.py` | `bar_test.py`; `pytest`/`python -m pytest`/
+   `uv run pytest`/`poetry run pytest` runs cover `test_*.py`; `-k expr` and
+   `file.py::node` are targeted. Coverage layer also accepts Cobertura XML
+   (`"coverage": {"cobertura": "coverage.xml"}`, from `--cov-report=xml`).
 
 ## Per-project config — `.claude/test-gate.json` (optional)
 

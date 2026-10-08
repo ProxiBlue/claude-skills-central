@@ -20,6 +20,7 @@ When a test fails, a system errors, or the user reports a bug, behave as follows
    - Unit failures: the failing test file, the class under test, the fixture the test used.
    - Runtime errors: the actual error log, the request log, and the log of any downstream service invoked during the failure window.
    - **Runtime errors, also MANDATORY: ask Bugsink.** `var/log` holds what Magento chose to write; Bugsink holds the captured exception with its chain, frames, request context and release tag — including errors thrown on uat/live and by cron/queue workers you cannot re-run. Grepping logs while ignoring a tracker that already has the stacktrace is the same failure this protocol bans.
+     Python projects (`PB_STACK=python`): the dev log is `.ddev/uvicorn.log` (not `var/log`), prod is journald on the host; errors reach Bugsink via `sentry-sdk`. `pytest -l --tb=long` prints frame locals for a failing test.
 
      ```bash
      source ~/.pb-hcf/bugsink.env 2>/dev/null || source .claude/bugsink.env

@@ -26,7 +26,9 @@
 #   (meaning the agent has not run unzip/cat/strings/grep/show-trace against
 #   it this session)
 #   THEN block edits to *.spec.ts, *.spec.js, *page.ts, *page.js,
-#   playwright.config.ts, playwright.config.js.
+#   playwright.config.ts, playwright.config.js — and pytest-playwright test
+#   files (test_*.py / *_test.py / conftest.py) that live under an e2e/ dir
+#   or whose existing or new content mentions playwright.
 #
 # Per-project opt-out: add `playwright-trace-guard` to
 # <repo>/.claude/rules-disable.
@@ -42,10 +44,20 @@ INPUT=$(cat 2>/dev/null)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null)
 case "$FILE" in
   *.spec.ts|*.spec.js|*page.ts|*page.js|*playwright.config.ts|*playwright.config.js) ;;
+  */test_*.py|test_*.py|*_test.py|*conftest.py)
+    # pytest-playwright: only when it is actually a browser test
+    case "/$FILE" in
+      */e2e/*) ;;
+      *) NEWTXT=$(echo "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // ""' 2>/dev/null)
+         if ! printf '%s' "$NEWTXT" | grep -qi 'playwright' \
+            && ! grep -qi 'playwright' "$FILE" 2>/dev/null; then
+           exit 0
+         fi ;;
+    esac ;;
   *) exit 0 ;;
 esac
 case "$FILE" in
-  */node_modules/*) exit 0 ;;
+  */node_modules/*|*/.venv/*) exit 0 ;;
 esac
 
 # Resolve from the EDITED FILE's own directory, not the hook's ambient cwd —

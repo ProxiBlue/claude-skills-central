@@ -51,7 +51,11 @@ echo "$PROJECTS" | while IFS=$'\t' read -r NAME ROOT STATUS; do
   # settings freshness (running containers only): does mounted settings match central?
   FRESH="-"
   if [ "$STATUS" = "running" ]; then
-    CSUM=$(md5sum ~/claude-skills-central/settings.json | cut -d' ' -f1)
+    # Compare against the profile this project mounts (profiles/<stack>/settings.json), else the master.
+    CENTRAL=~/claude-skills-central/settings.json
+    PROF=$(grep -oE 'claude-skills-central/profiles/[a-z0-9_-]+/settings\.json' .ddev/docker-compose.ai.mounts.yaml 2>/dev/null | head -1)
+    [ -n "$PROF" ] && CENTRAL="$HOME/$PROF"
+    CSUM=$(md5sum "$CENTRAL" | cut -d' ' -f1)
     MSUM=$(ddev exec -s web md5sum /var/www/html/.claude/settings.json </dev/null 2>/dev/null | cut -d' ' -f1)
     if [ -n "$MSUM" ]; then [ "$CSUM" = "$MSUM" ] && FRESH="in-sync" || FRESH="STALE-MOUNT"; fi
   fi

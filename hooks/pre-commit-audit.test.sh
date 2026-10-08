@@ -170,6 +170,41 @@ run 'git commit -m "feat: add baz and qux"'
 if [ "$RC" = 0 ] && ! grep -q "duplicate blocks" /tmp/pca-out.txt; then ok; else bad "expected silent pass under 6-line threshold, got $RC: $(cat /tmp/pca-out.txt)"; fi
 git reset -q e.php f.php; rm -f e.php f.php
 
+# --- Python (2026-10-08) ---------------------------------------------------------
+mkdir -p src/pkg
+# narration noise in a py-only commit blocks (no external tool needed)
+printf 'def total(items):\n    # Loop through items and sum them\n    return sum(items)\n' > src/pkg/calc.py
+git add src/pkg/calc.py
+run 'git commit -m "feat: py total"'
+if [ "$RC" = 2 ] && grep -q "comment noise" /tmp/pca-out.txt; then ok; else bad "expected block on narration comment in py-only commit, got $RC: $(cat /tmp/pca-out.txt)"; fi
+git reset -q src/pkg/calc.py
+
+# clean py, no ruff anywhere -> pass (never fail on absent tooling)
+printf 'def total(items):\n    return sum(items)\n' > src/pkg/clean.py
+git add src/pkg/clean.py
+if ! command -v ruff >/dev/null 2>&1; then
+  run 'git commit -m "feat: clean py"'
+  [ "$RC" = 0 ] && ok || bad "expected pass on clean py without ruff, got $RC: $(cat /tmp/pca-out.txt)"
+else
+  skip "ruff on PATH — absent-ruff case not applicable"
+fi
+# stub .venv/bin/ruff: reports a lint error -> block; silent -> pass
+mkdir -p .venv/bin
+printf '#!/bin/bash\nfor a; do case "$a" in *.py) echo "$a:1:1: F401 [*] \`os\` imported but unused"; exit 1;; esac; done\n' > .venv/bin/ruff
+chmod +x .venv/bin/ruff
+run 'git commit -m "feat: clean py"'
+if [ "$RC" = 2 ] && grep -q "ruff check" /tmp/pca-out.txt && grep -q F401 /tmp/pca-out.txt; then ok; else bad "expected ruff error block, got $RC: $(cat /tmp/pca-out.txt)"; fi
+printf '#!/bin/bash\necho "All checks passed!"\nexit 0\n' > .venv/bin/ruff
+run 'git commit -m "feat: clean py"'
+[ "$RC" = 0 ] && ok || bad "expected pass when ruff clean, got $RC: $(cat /tmp/pca-out.txt)"
+# PHP-only commit never invokes ruff (regression)
+printf '#!/bin/bash\necho "x.py:1:1: E999 should-not-run"; exit 1\n' > .venv/bin/ruff
+git reset -q src/pkg/clean.py
+git add app/code/Vendor/Module/Clean.php 2>/dev/null
+run 'git commit -m "feat: php only"'
+if ! grep -q "ruff" /tmp/pca-out.txt; then ok; else bad "ruff ran on a PHP-only commit: $(cat /tmp/pca-out.txt)"; fi
+git reset -q; rm -rf .venv src
+
 cd /
 rm -rf "$D" /tmp/pca-out.txt
 

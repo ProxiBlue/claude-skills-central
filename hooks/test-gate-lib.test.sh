@@ -55,5 +55,31 @@ fam "" "quoted pipe is not a runner (pgrep probe)" "pgrep -af 'playwright|phpuni
 fam "unit" "filter regex with pipe stays one segment" 'vendor/bin/phpunit --filter "Up|ProxiBlue"'
 fam "e2e" "quoted grep title with ; and |" "npx playwright test a.spec.ts -g 'x; y | z'"
 
+# --- Python runners (2026-10-08) ---------------------------------------------
+fam "unit" "bare pytest"                       "pytest -q tests/"
+fam "unit" "venv pytest path"                  ".venv/bin/pytest tests/test_bar.py"
+fam "unit" "python -m pytest"                  "python -m pytest -x"
+fam "unit" "python3.12 -m pytest"              "python3.12 -m pytest"
+fam "unit" "uv run pytest"                     "uv run pytest -q"
+fam "unit" "uv run --frozen pytest"            "uv run --frozen pytest"
+fam "unit" "poetry run pytest"                 "poetry run pytest"
+fam "unit" "uv run python -m pytest"           "uv run python -m pytest tests"
+fam ""     "uv sync is not a test run"         "uv sync"
+fam ""     "python script is not a test run"   "python scripts/build.py"
+fam ""     "grep for pytest is not a run"      "grep -rn pytest pyproject.toml"
+
+kind() { # kind <expected> <desc> <fn> <arg>
+  local got; got=$("$3" "$4")
+  if [ "$got" = "$1" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL ($2): expected [$1] got [$got]"; fi
+}
+kind py    "test_*.py kind"        tg_test_kind "tests/unit/test_bar.py"
+kind py    "*_test.py kind"        tg_test_kind "pkg/bar_test.py"
+kind other "conftest is support"   tg_test_kind "tests/conftest.py"
+kind php   "FooTest.php kind"      tg_test_kind "Test/Unit/FooTest.php"
+kind py    "pytest segment kind"   tg_segment_kind "uv run pytest tests"
+kind php   "phpunit segment kind"  tg_segment_kind "vendor/bin/phpunit -c x"
+tp() { if tg_is_test_path "$2"; then g=0; else g=1; fi; if [ "$g" = "$1" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "FAIL (is_test_path $2): expected $1"; fi; }
+tp 0 "test_bar.py"; tp 0 "pkg/bar_test.py"; tp 0 "conftest.py"; tp 1 "src/pkg/bar.py"; tp 0 "tests/FooTest.php"; tp 1 "src/Foo.php"
+
 echo "test-gate-lib tests: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

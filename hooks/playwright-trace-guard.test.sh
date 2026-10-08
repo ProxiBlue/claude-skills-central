@@ -33,6 +33,17 @@ t 2 "spec file, fresh trace, unseen"   "$D/tests/login.spec.ts"
 t 0 "unrelated file still allowed"     "$D/src/App.tsx"
 t 0 "node_modules path excluded"       "$D/node_modules/pkg/x.spec.ts"
 
+# --- pytest-playwright files (2026-10-08) ---------------------------------------
+t 2 "py test under e2e/, fresh trace"   "$D/tests/e2e/test_checkout.py"
+mkdir -p "$D/tests/ui"; printf 'from playwright.sync_api import Page\n' > "$D/tests/ui/test_login.py"
+t 2 "py test importing playwright"      "$D/tests/ui/test_login.py"
+printf 'import pytest\n' > "$D/tests/ui/test_math.py"
+t 0 "plain pytest file allowed"         "$D/tests/ui/test_math.py"
+t 0 "py source file allowed"            "$D/src/pkg/login.py"
+t 0 ".venv path excluded"               "$D/.venv/lib/e2e/test_x.py"
+printf '{"tool_input":{"file_path":"%s","content":"def test_x(page):\\n    page.goto(1)  # playwright"}}' "$D/tests/ui/test_new.py" \
+  | bash "$HOOK" >/dev/null 2>&1; g=$?; [ "$g" = 2 ] && ok || bad "new py file whose content mentions playwright" 2 "$g"
+
 # --- rules-disable opt-out ----------------------------------------------------
 mkdir -p .claude && echo playwright-trace-guard > .claude/rules-disable
 t 0 "opt-out via rules-disable" "$D/tests/login.spec.ts"

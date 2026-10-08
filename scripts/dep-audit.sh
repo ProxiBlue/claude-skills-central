@@ -1,9 +1,15 @@
 #!/bin/bash
-# dep-audit.sh — daily composer-advisory watch for in-scope projects (AP-5).
+# dep-audit.sh — daily dependency-advisory watch for in-scope projects (AP-5).
 #
-# Runs `composer audit --locked` (host composer, reads composer.lock + the
-# packagist advisory DB — no container needed) for every project in
-# host/tooling-scope.txt that has a lock file. Alerts ONLY on CHANGES: a new
+# Branches on the project's manifest:
+#   composer.lock                         -> `composer audit --locked` (host
+#                                            composer, packagist advisory DB)
+#   uv.lock / pyproject.toml / requirements*.txt -> pip-audit (PyPI advisory
+#                                            DB): `uv run pip-audit` when uv.lock,
+#                                            else .venv/bin/pip-audit, else
+#                                            pip-audit on PATH, else `pipx run`.
+#                                            Not installed -> skipped with a note.
+# for every project in host/tooling-scope.txt. Alerts ONLY on CHANGES: a new
 # advisory set (vs the stored state) posts a chatroom thread; a clean or
 # unchanged state stays silent. CVEs appear asynchronously — they are news,
 # not a gate; blocking commits on them would punish the wrong event.
@@ -51,13 +57,63 @@ except Exception: print('')" 2>/dev/null)
   fi
 }
 
+# Python projects: pip-audit, JSON on stdout. Sets $out, $advisories,
+# $PY_AUDIT_CMD. Returns 1 (caller skips) when no pip-audit is available or
+# it produced nothing parseable. pip-audit exits 1 when it FINDS vulns, so
+# its exit code is ignored — only its JSON counts.
+py_audit() {
+  local dir="$1" req=""
+  PY_AUDIT_CMD=""; out=""
+  for r in "$dir"/requirements.txt "$dir"/requirements*.txt; do [ -f "$r" ] && { req="${r##*/}"; break; }; done
+  if [ -f "$dir/uv.lock" ] && command -v uv >/dev/null 2>&1; then
+    PY_AUDIT_CMD="uv run --frozen pip-audit -f json"
+    out=$(cd "$dir" && timeout 300 uv run --frozen pip-audit -f json </dev/null 2>/dev/null)
+  fi
+  if [ -z "$out" ] && [ -x "$dir/.venv/bin/pip-audit" ]; then
+    PY_AUDIT_CMD=".venv/bin/pip-audit -f json"
+    out=$(cd "$dir" && timeout 300 .venv/bin/pip-audit -f json </dev/null 2>/dev/null)
+  fi
+  if [ -z "$out" ]; then
+    local pa=""
+    if command -v pip-audit >/dev/null 2>&1; then pa="pip-audit"
+    elif command -v pipx >/dev/null 2>&1; then pa="pipx run pip-audit"; fi
+    if [ -n "$pa" ]; then
+      if [ -n "$req" ]; then PY_AUDIT_CMD="$pa -r $req -f json"
+      else PY_AUDIT_CMD="$pa -f json ."; fi
+      out=$(cd "$dir" && timeout 300 $PY_AUDIT_CMD </dev/null 2>/dev/null)
+    fi
+  fi
+  if [ -z "$PY_AUDIT_CMD" ]; then
+    echo "[$proj] Python project but pip-audit unavailable (install: uv tool install pip-audit) — skipped"
+    return 1
+  fi
+  out=$(printf '%s\n' "$out" | sed -n '/^[[{]/,$p')
+  if [ -z "$out" ] || ! echo "$out" | jq -e . >/dev/null 2>&1; then
+    echo "[$proj] pip-audit produced no parseable output — skipped"
+    return 1
+  fi
+  advisories=$(echo "$out" | jq -c '[(if type == "array" then . else (.dependencies // []) end)[]
+      | .name as $pkg | (.vulns // [])[] | {pkg: $pkg, id: .id}]
+      | sort_by(.pkg + (.id|tostring))' 2>/dev/null)
+  return 0
+}
+
 checked=0; alerted=0
-while IFS= read -r proj; do
+while IFS=" 	" read -r proj _stack; do
   case "$proj" in ''|\#*) continue ;; esac
   dir=$(resolve_dir "$proj")
   [ -z "$dir" ] && { echo "[$proj] dir not resolved — skipped"; continue; }
-  [ -f "$dir/composer.lock" ] || { echo "[$proj] no composer.lock — skipped"; continue; }
+  if [ -f "$dir/composer.lock" ]; then
+    KIND=composer
+  elif [ -f "$dir/uv.lock" ] || [ -f "$dir/pyproject.toml" ] || ls "$dir"/requirements*.txt >/dev/null 2>&1; then
+    KIND=python
+  else
+    echo "[$proj] no composer.lock / Python manifest — skipped"; continue
+  fi
 
+  if [ "$KIND" = "python" ]; then
+    py_audit "$dir" || continue
+  else
   out=$(cd "$dir" && composer audit --locked --format=json 2>/dev/null)
   if [ -z "$out" ]; then
     # host composer may lack private-repo auth (e.g. wyomind on pps) — the
@@ -70,6 +126,7 @@ while IFS= read -r proj; do
   advisories=$(echo "$out" | jq -c '[.advisories // {} | to_entries[]
       | .key as $pkg | .value[] | {pkg: $pkg, id: (.advisoryId // .cve // .title)}]
       | sort_by(.pkg + (.id|tostring))' 2>/dev/null)
+  fi
   [ -z "$advisories" ] && advisories='[]'
   count=$(echo "$advisories" | jq length)
   new_hash=$(echo "$advisories" | sha1sum | cut -d' ' -f1)
@@ -79,14 +136,22 @@ while IFS= read -r proj; do
   if [ "$new_hash" != "$old_hash" ]; then
     echo "$new_hash" > "$STATE/$proj.sha"
     if [ "$count" -gt 0 ]; then
-      detail=$(echo "$out" | jq -r '.advisories | to_entries[] |
-        .key as $pkg | .value[] | "- \($pkg): \(.title // .cve // .advisoryId) [\(.severity // "?")]"' 2>/dev/null | head -15)
+      if [ "$KIND" = "python" ]; then
+        detail=$(echo "$out" | jq -r '(if type == "array" then . else (.dependencies // []) end)[]
+          | .name as $pkg | .version as $v | (.vulns // [])[]
+          | "- \($pkg) \($v): \(.id)\(if (.aliases // []) | length > 0 then " (" + ((.aliases) | join(", ")) + ")" else "" end) fix: \((.fix_versions // []) | join(", ") | if . == "" then "none" else . end)"' 2>/dev/null | head -15)
+        TOOLNAME="pip-audit"; CHECK="cd $dir && $PY_AUDIT_CMD"
+      else
+        detail=$(echo "$out" | jq -r '.advisories | to_entries[] |
+          .key as $pkg | .value[] | "- \($pkg): \(.title // .cve // .advisoryId) [\(.severity // "?")]"' 2>/dev/null | head -15)
+        TOOLNAME="composer audit"; CHECK="cd $dir && composer audit --locked"
+      fi
       alert_chatroom "Dependency advisories: $proj ($count)" \
-"composer audit found $count advisory(ies) in $proj (changed since last run):
+"$TOOLNAME found $count advisory(ies) in $proj (changed since last run):
 
 $detail
 
-Check: cd $dir && composer audit --locked
+Check: $CHECK
 Fix: update the affected package(s) on a feature branch; advisory clears on next run." \
         "Dependency advisories: $proj"
       alerted=$((alerted+1))

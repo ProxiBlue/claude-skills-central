@@ -91,7 +91,7 @@ if echo "$CMD" | grep -qE "$LOOP" && echo "$CMD" | grep -qE '(^|[;&|[:space:]])s
 fi
 
 # --- 2. detached launch of a test/build run ----------------------------------
-TESTISH='(playwright|phpunit|vendor/bin/(phpunit|phpstan|psalm|pest)|(npm|yarn|pnpm)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|codecept|bin/magento[[:space:]]+dev:tests)'
+TESTISH='(playwright|phpunit|vendor/bin/(phpunit|phpstan|psalm|pest)|(npm|yarn|pnpm)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|codecept|bin/magento[[:space:]]+dev:tests|pytest|py\.test|uvicorn)'
 # Scan text excludes heredoc bodies (data, not commands — a python patch
 # script mentioning phpunit was blocked as a "detached test run", 2026-10-01)
 # and the non-detaching ampersands `&&`, `>&`, `&>`, which a line-final

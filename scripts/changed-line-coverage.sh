@@ -1,5 +1,5 @@
 #!/bin/bash
-# changed-line-coverage.sh <project_root> <clover_xml> <min_pct> <base_ref>
+# changed-line-coverage.sh <project_root> <clover_xml> <min_pct> <base_ref> [<globs>]
 #
 # Checks that the lines CHANGED vs <base_ref> (default HEAD) are actually
 # executed by the test suite, using a clover coverage report. This is the
@@ -11,7 +11,9 @@
 #   1 — below threshold
 #   3 — cannot check: clover missing, stale (older than a changed file), or no python3
 #
-# Only PHP files are checked (clover is a PHP-ecosystem format). A changed file
+# <globs> (space-separated pathspecs, default '*.php') picks the changed files
+# checked. The report may be clover (PHP) or Cobertura XML (coverage.py
+# `--cov-report=xml`, for '*.py'); the format is auto-detected. A changed file
 # entirely absent from the report counts ALL its changed lines as uncovered —
 # that absence is precisely the smell being hunted.
 #
@@ -22,13 +24,15 @@ ROOT="$1"
 CLOVER="$2"
 MIN="${3:-60}"
 BASE="${4:-HEAD}"
+GLOBS="${5:-*.php}"
+read -r -a GLOBARR <<< "$GLOBS"
 
 [ -d "$ROOT" ] || { echo "coverage: bad project root"; exit 3; }
 cd "$ROOT" || exit 3
 [ -f "$CLOVER" ] || { echo "coverage: clover report not found: $CLOVER"; exit 3; }
 command -v python3 >/dev/null 2>&1 || { echo "coverage: python3 not available"; exit 3; }
 
-DIFF_FILES=$(git diff --name-only "$BASE" -- '*.php' 2>/dev/null)
+DIFF_FILES=$(git diff --name-only "$BASE" -- "${GLOBARR[@]}" 2>/dev/null)
 [ -z "$DIFF_FILES" ] && exit 0
 
 # staleness: report must postdate every changed file
@@ -45,7 +49,7 @@ if [ "$NEWEST" -gt 0 ] && [ "$CMTIME" -lt "$NEWEST" ]; then
 fi
 
 TMP=$(mktemp "${TMPDIR:-/tmp}/tg-cov.XXXXXX") || exit 3
-git diff -U0 "$BASE" -- '*.php' > "$TMP" 2>/dev/null
+git diff -U0 "$BASE" -- "${GLOBARR[@]}" > "$TMP" 2>/dev/null
 
 python3 - "$CLOVER" "$MIN" "$TMP" <<'PY'
 import re, sys
@@ -74,10 +78,30 @@ if not changed:
 try:
     tree = ET.parse(clover)
 except ET.ParseError as e:
-    print(f"coverage: clover parse error: {e}")
+    print(f"coverage: report parse error: {e}")
     sys.exit(3)
 
 cov = {}
+# Cobertura (coverage.py): <sources><source>DIR</source></sources>
+#   <class filename="pkg/x.py"><lines><line number="N" hits="H"/></lines></class>
+sources = [ (s.text or "").strip().rstrip("/") for s in tree.iter("source") ]
+for ce in tree.iter("class"):
+    fn = ce.get("filename")
+    if not fn:
+        continue
+    lines = {}
+    for le in ce.iter("line"):
+        try:
+            n, h = int(le.get("number")), int(le.get("hits") or 0)
+        except (TypeError, ValueError):
+            continue
+        lines[n] = max(h, lines.get(n, 0))
+    for src in (sources or [""]):
+        p = (src + "/" + fn) if src else fn
+        prev = cov.get(p, {})
+        for n, h in lines.items():
+            prev[n] = max(h, prev.get(n, 0))
+        cov[p] = prev
 for fe in tree.iter("file"):
     p = fe.get("path") or fe.get("name") or ""
     lines = {}

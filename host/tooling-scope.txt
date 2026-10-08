@@ -4,9 +4,13 @@
 # but out-of-scope projects (non-Magento, archived, or not yet needing the
 # tooling) are not drift and must not generate noise.
 #
+# Optional 2nd field = stack profile (magento|python); missing = magento.
+# Consumers (fleet-drift-check, fleet-inventory, dep-audit, telemetry_dashboard) read field 1.
+#
 # Add a project here when it starts needing the tooling; the operator adjusts
 # the rest as needed, when needed. As of 2026-08-02: pps, lcd, webhooks (M2) + ntotankM1 (M1, EOL — right-sized: no graphiti/M2 guide).
 pvcpipesupplies
 lcd-mageos
 webhooks
 ntotankM1
+pdftovec python

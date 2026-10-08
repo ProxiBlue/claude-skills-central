@@ -1,6 +1,7 @@
 #!/bin/bash
 # PreToolUse hook: audit staged files before `git commit`.
 # Runs phpcs (Magento2 for app/code/, PSR12 elsewhere), phpstan if configured,
+# ruff on staged .py (when ruff is installed), basedpyright if configured,
 # xmllint on staged XML, a comment-noise scan, and a duplicate-block scan.
 # Silent unless issues are found.
 
@@ -21,7 +22,8 @@ cd "$PROJECT_ROOT"
 
 STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' 2>/dev/null || true)
 STAGED_XML=$(git diff --cached --name-only --diff-filter=ACMR -- '*.xml' 2>/dev/null || true)
-STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null || true)
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACMR -- '*.py' 2>/dev/null || true)
+STAGED_CODE=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.phtml' '*.js' '*.ts' '*.py' 2>/dev/null || true)
 
 # NOTE: must include STAGED_CODE here — a commit touching only .js/.ts files
 # has empty STAGED_PHP/STAGED_XML but still needs the comment-noise and
@@ -63,13 +65,39 @@ if [ -n "$STAGED_PHP" ] && [ -f vendor/bin/phpstan ]; then
     fi
 fi
 
+# Python: ruff (lint errors block, like phpcs) and basedpyright (only when the
+# project configures it, like phpstan). Tool lookup: project .venv first, then
+# PATH. Absent tools are skipped silently — never fail on missing tooling.
+if [ -n "$STAGED_PY" ]; then
+    PY_FILES=""
+    for file in $STAGED_PY; do
+        echo "$file" | grep -qE '^(\.venv|venv|node_modules|vendor)/' && continue
+        [ -f "$file" ] && PY_FILES="${PY_FILES} ${file}"
+    done
+    RUFF=""
+    if [ -x .venv/bin/ruff ]; then RUFF=.venv/bin/ruff
+    elif command -v ruff >/dev/null 2>&1; then RUFF=ruff; fi
+    if [ -n "$PY_FILES" ] && [ -n "$RUFF" ]; then
+        RESULT=$($RUFF check --output-format=concise --no-fix $PY_FILES 2>&1 | grep -E '^[^[:space:]].*:[0-9]+:[0-9]+: ') || true
+        [ -n "$RESULT" ] && ERRORS="${ERRORS}\n--- ruff check ---\n${RESULT}\n"
+    fi
+    BPR=""
+    if [ -x .venv/bin/basedpyright ]; then BPR=.venv/bin/basedpyright
+    elif command -v basedpyright >/dev/null 2>&1; then BPR=basedpyright; fi
+    if [ -n "$PY_FILES" ] && [ -n "$BPR" ] \
+       && { [ -f pyrightconfig.json ] || grep -qE '^\[tool\.(basedpyright|pyright)\]' pyproject.toml 2>/dev/null; }; then
+        RESULT=$($BPR --level error $PY_FILES 2>&1) || true
+        echo "$RESULT" | grep -qE '[1-9][0-9]* errors?' && ERRORS="${ERRORS}\n--- basedpyright ---\n${RESULT}\n"
+    fi
+fi
+
 # Comment-noise scan: added inline comments that narrate the code instead of
 # stating a constraint (AI-generated "// call the helper" style). Only ADDED
 # lines, only // and # inline comments (docblocks untouched), narrow patterns
 # to keep false positives near zero. Blocking like the rest of the audit.
 if [ -n "$STAGED_CODE" ]; then
-    NOISE=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null | awk '
-        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules)\//); next }
+    NOISE=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' '*.py' 2>/dev/null | awk '
+        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules|\.venv)\//); next }
         /^\+/ && !skip {
             line = substr($0, 2)
             if (line ~ /(\/\/|#)[[:space:]]*([Cc]alls? the|[Ff]irst,|[Tt]hen,|[Nn]ow (we|call|check|create)|[Ll]oop (through|over)|[Ii]terate (through|over)|[Gg]et the|[Ss]et the|[Rr]eturn the|[Cc]reate a new|[Ii]nitiali[sz]e the|[Tt]his (fixes|ensures|change|will now)|[Cc]heck (if|that|whether) the|[Aa]dded (to|for|because)|[Mm]ake sure)/)
@@ -88,8 +116,8 @@ fi
 # one reports and lets the commit through; promote to blocking later only if
 # it proves clean in practice.
 if [ -n "$STAGED_CODE" ]; then
-    DUPES=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' 2>/dev/null | awk -v W=6 -v MINLEN=6 -v CAP=10 '
-        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules)\//); next }
+    DUPES=$(git diff --cached -U0 -- '*.php' '*.phtml' '*.js' '*.ts' '*.py' 2>/dev/null | awk -v W=6 -v MINLEN=6 -v CAP=10 '
+        /^\+\+\+ b\// { file = substr($0, 7); skip = (file ~ /^(vendor|generated|var|pub\/static|node_modules|\.venv)\//); next }
         /^\+/ && !skip {
             line = substr($0, 2)
             gsub(/^[ \t]+|[ \t]+$/, "", line)

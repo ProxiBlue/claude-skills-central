@@ -1,0 +1,5 @@
+php-debug-guard
+magento-generated-clear-guard
+magento-config-dump-guard
+magento-static-analysis-guard
+suite-inflight-guard

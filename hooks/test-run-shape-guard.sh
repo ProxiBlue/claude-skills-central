@@ -80,9 +80,14 @@ if [ -n "$(tg_test_families "$CMD")" ] && tg_runner_piped "$CMD" \
 fi
 
 # 2. wrapper script that runs a test runner
-RUNNER_RE='(^|[^[:alnum:]_-])(phpunit|paratest|pest|codecept|behat|playwright[[:space:]]+test|yarn[[:space:]]+(run[[:space:]]+)?test|npm[[:space:]]+(run[[:space:]]+)?test|node[[:space:]]+--test)([^[:alnum:]_-]|$)'
+RUNNER_RE='(^|[^[:alnum:]_-])(phpunit|paratest|pest|codecept|behat|pytest|playwright[[:space:]]+test|yarn[[:space:]]+(run[[:space:]]+)?test|npm[[:space:]]+(run[[:space:]]+)?test|node[[:space:]]+--test)([^[:alnum:]_-]|$)'
 WRAPPER=""
-while IFS= read -r seg; do
+# Segments come from the QUOTE-AWARE splitter (heredoc bodies dropped). The
+# old `sed s/|/\n/` split cut inside quoted grep patterns: `grep -nE 'a|X='
+# hooks/test-gate.sh` yielded a fake segment `X=' hooks/test-gate.sh`, whose
+# env-assignment skip left the .sh path in command position → read-only grep
+# blocked as a "wrapper" (2026-10-08). Only the segment's command word counts.
+while IFS=$'\t' read -r _op seg; do
   # shellcheck disable=SC2086
   set -f; set -- $seg; set +f
   while [ $# -gt 0 ]; do
@@ -101,7 +106,7 @@ while IFS= read -r seg; do
   [ -f "$p" ] || continue
   if grep -qE "$RUNNER_RE" "$p" 2>/dev/null; then WRAPPER="$f"; break; fi
 done <<EOF
-$(printf '%s\n' "$CMD" | sed -E 's/(\|\|)|(&&)|;|\|/\n/g')
+$(tg_split_segments "$CMD")
 EOF
 if [ -n "$WRAPPER" ]; then
   block "'$WRAPPER' is a wrapper script that invokes a test runner. test-evidence.sh only sees the wrapper command line, so this run records no evidence whether it passes or fails." \

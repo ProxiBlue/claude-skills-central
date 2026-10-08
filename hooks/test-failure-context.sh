@@ -36,7 +36,7 @@ INPUT=$(cat 2>/dev/null)
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null)
 [ -z "$CMD" ] && exit 0
 
-echo "$CMD" | grep -qE '(phpunit|paratest|pest|codecept|playwright|vitest|jest|npm[[:space:]]+(run[[:space:]]+)?test|yarn[[:space:]]+test|bin/magento[[:space:]]+dev:tests)' || exit 0
+echo "$CMD" | grep -qE '(phpunit|paratest|pest|codecept|playwright|vitest|jest|pytest|py\.test|npm[[:space:]]+(run[[:space:]]+)?test|yarn[[:space:]]+test|bin/magento[[:space:]]+dev:tests)' || exit 0
 
 # Per-project opt-out
 TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -47,7 +47,7 @@ fi
 OUT=$(echo "$INPUT" | jq -r '(.tool_response | if type == "object" then (.stdout // .output // "") else tostring end) // ""' 2>/dev/null)
 [ -z "$OUT" ] && exit 0
 
-echo "$OUT" | grep -qE '(FAILURES!|ERRORS!|Tests?[^a-zA-Z]*failed|[1-9][0-9]*[[:space:]]+failed|AssertionError|✘|✗)' || exit 0
+echo "$OUT" | grep -qE '(FAILURES!|ERRORS!|Tests?[^a-zA-Z]*failed|[1-9][0-9]*[[:space:]]+failed|AssertionError|✘|✗|^FAILED[[:space:]]|^ERROR[[:space:]]+[^[:space:]]+\.py|short test summary info|[Ee][Rr][Rr][Oo][Rr] collecting|errors? during collection|=+ [1-9][0-9]* errors?[ ,])' || exit 0
 
 # Debounce: once per 10 min per session.
 # 2026-09-07: was keyed by $PPID, but $PPID is NOT stable across separate

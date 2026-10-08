@@ -300,6 +300,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/python-debug-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash /var/www/html/.claude/hooks/playwright-trace-guard.sh"
           }
         ]

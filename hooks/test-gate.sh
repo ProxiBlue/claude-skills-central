@@ -14,7 +14,7 @@
 #
 # Scope control — the gate only arms itself when the project shows test
 # infrastructure (phpunit.xml*, vendor/bin/phpunit, playwright config,
-# package.json test script) or an explicit config. Docs/skills/shell-only
+# package.json test script, pytest infra) or an explicit config. Docs/skills/shell-only
 # repos pass through untouched.
 #
 # Per-project config (optional): <root>/.claude/test-gate.json
@@ -114,6 +114,19 @@ if [ "$UNIT_INFRA" = "0" ] && [ -f "$ROOT/package.json" ]; then
     *) UNIT_INFRA=1 ;;
   esac
 fi
+# Python (pytest) infra. Tracked separately so .py only joins the gated code
+# set in Python projects — a Magento repo's stray helper .py stays ungated.
+PY_INFRA=0
+if [ -f "$ROOT/pytest.ini" ] || [ -f "$ROOT/conftest.py" ] || [ -f "$ROOT/tests/conftest.py" ]; then
+  PY_INFRA=1
+elif [ -f "$ROOT/pyproject.toml" ] && grep -qE '^\[tool\.pytest|pytest' "$ROOT/pyproject.toml" 2>/dev/null; then
+  PY_INFRA=1
+elif [ -f "$ROOT/setup.cfg" ] && grep -qE '^\[tool:pytest\]' "$ROOT/setup.cfg" 2>/dev/null; then
+  PY_INFRA=1
+elif [ -f "$ROOT/tox.ini" ] && grep -qE '^\[pytest\]' "$ROOT/tox.ini" 2>/dev/null; then
+  PY_INFRA=1
+fi
+[ "$PY_INFRA" = "1" ] && UNIT_INFRA=1
 
 # --- arm check ---------------------------------------------------------------
 ENABLED=""
@@ -146,6 +159,7 @@ fi
 
 # --- changed code files ------------------------------------------------------
 DEFAULT_CODE_RE='\.(php|phtml|js|mjs|cjs|ts|tsx|jsx|graphqls?)$'
+[ "$PY_INFRA" = "1" ] && DEFAULT_CODE_RE='\.(php|phtml|js|mjs|cjs|ts|tsx|jsx|graphqls?|py)$'
 CODE_RE="$DEFAULT_CODE_RE"
 EXEMPT_RE=""
 if [ -f "$CFG" ]; then
@@ -322,13 +336,18 @@ $norun"
 cov_gate() {
   [ -f "$CFG" ] || return 0
   local clover minpct onmiss out rc
-  clover=$(jq -r '.coverage.clover // empty' "$CFG" 2>/dev/null)
+  # clover (PHP) or Cobertura XML (coverage.py --cov-report=xml); parser auto-detects
+  clover=$(jq -r '.coverage.clover // .coverage.cobertura // empty' "$CFG" 2>/dev/null)
   [ -z "$clover" ] && return 0
   case "$clover" in /*) : ;; *) clover="$ROOT/$clover" ;; esac
   minpct=$(jq -r '.coverage.min_pct // 60' "$CFG" 2>/dev/null)
   onmiss=$(jq -r '.coverage.on_missing // "block"' "$CFG" 2>/dev/null)
-  printf '%s\n' "$GATED" | grep -qE '\.php$' || return 0
-  out=$("$SCRIPT_DIR/../scripts/changed-line-coverage.sh" "$ROOT" "$clover" "$minpct" HEAD 2>&1)
+  local globs=""
+  printf '%s\n' "$GATED" | grep -qE '\.php$' && globs="*.php"
+  [ "$PY_INFRA" = "1" ] && printf '%s\n' "$GATED" | grep -qE '\.py$' \
+    && globs="${globs:+$globs }*.py :(exclude)test_*.py :(exclude)*/test_*.py :(exclude)*_test.py :(exclude)*conftest.py :(exclude)tests/*"
+  [ -z "$globs" ] && return 0
+  out=$("$SCRIPT_DIR/../scripts/changed-line-coverage.sh" "$ROOT" "$clover" "$minpct" HEAD "$globs" 2>&1)
   rc=$?
   if [ "$rc" = "1" ]; then
     COV_FAIL="changed-line coverage below threshold:\n$out"
@@ -409,13 +428,15 @@ if [ -n "$REL_FAIL" ]; then
     printf '%s\n' "$REL_FAIL"
     evidence_report
     echo "Coverage rules: a run covers a test only if its runner kind matches"
-    echo "(phpunit -> *Test.php, playwright -> *.spec.*, node --test/jest/vitest -> *.test.*)."
+    echo "(phpunit -> *Test.php, playwright -> *.spec.*, node --test/jest/vitest -> *.test.*,"
+    echo " pytest -> test_*.py / *_test.py; a pytest -k expr covers tests whose path contains a word of it)."
     echo "Within a kind: no filter/path args = whole kind; a directory arg covers tests"
     echo "under it; a --filter regex covers tests whose class name or path it matches."
     echo ""
     echo "What to do:"
     echo "  1. Files with NO test: write one FIRST (mapped location, e.g."
-    echo "     Model/Foo.php -> Test/Unit/Model/FooTest.php, foo.ts -> foo.spec.ts),"
+    echo "     Model/Foo.php -> Test/Unit/Model/FooTest.php, foo.ts -> foo.spec.ts,"
+    echo "     pkg/bar.py -> tests/test_bar.py),"
     echo "     make it pass, then retry the $OP."
     echo "  2. Files whose tests exist but were not run: run those tests NOW via the"
     echo "     Bash tool — targeted (name the file / --filter) or the full suite —"
@@ -441,6 +462,11 @@ HINT=""
 [ -f "$CFG" ] && HINT=$(jq -r '.test_hint // empty' "$CFG" 2>/dev/null)
 if [ -z "$HINT" ]; then
   [ -f "$ROOT/vendor/bin/phpunit" ] && HINT="vendor/bin/phpunit (use the project's phpunit.xml / dev/tests config)"
+  if [ -z "$HINT" ] && [ "$PY_INFRA" = "1" ]; then
+    if [ -f "$ROOT/uv.lock" ]; then HINT="uv run pytest (target the changed modules' tests/test_*.py)"
+    elif [ -x "$ROOT/.venv/bin/pytest" ]; then HINT=".venv/bin/pytest (target the changed modules' tests/test_*.py)"
+    else HINT="pytest (target the changed modules' tests/test_*.py)"; fi
+  fi
   [ -z "$HINT" ] && HINT="this project's test suite (see package.json / dev/tests)"
 fi
 

@@ -7,6 +7,8 @@ paths:
 ---
 # xdebug / pcov defaults — off by default, load on demand
 
+> **Scope: PHP projects only.** If the project has no `composer.json` (e.g. a `type: generic` Python project, `PB_STACK=python`), this rule does not apply — stop reading. Python twin: `python-debugging.md`.
+
 ## The rule
 
 Every DDEV PHP project: xdebug and pcov OFF by default in **both** PHP-FPM and PHP-CLI.

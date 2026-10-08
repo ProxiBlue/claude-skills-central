@@ -40,7 +40,7 @@ def _in_scope():
     for ln in p.read_text().splitlines():
         ln = ln.strip()
         if ln and not ln.startswith("#"):
-            names.add(ln)
+            names.add(ln.split()[0])  # 2nd field = stack
     return names
 
 SCOPE = _in_scope()

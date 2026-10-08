@@ -72,6 +72,10 @@ tg_is_test_path() {
     *Test.php|*.spec.js|*.spec.jsx|*.spec.ts|*.spec.tsx|*.spec.mjs|\
     *.test.js|*.test.jsx|*.test.ts|*.test.tsx|*.test.mjs) return 0 ;;
   esac
+  # Python (pytest discovery names + fixtures module)
+  case "${1##*/}" in
+    test_*.py|*_test.py|conftest.py) return 0 ;;
+  esac
   case "/$1" in
     */Test/*|*/Tests/*|*/tests/*|*/test/*|*/__tests__/*) return 0 ;;
   esac
@@ -86,7 +90,7 @@ tg_test_files() {
     cd "$root" 2>/dev/null || exit 1
     { git ls-files 2>/dev/null; git ls-files -o --exclude-standard 2>/dev/null; } \
       | sort -u \
-      | grep -E '(^|/)(Test|Tests|tests|test|__tests__)/|Test\.php$|\.(spec|test)\.(js|jsx|ts|tsx|mjs)$' \
+      | grep -E '(^|/)(Test|Tests|tests|test|__tests__)/|Test\.php$|\.(spec|test)\.(js|jsx|ts|tsx|mjs)$|(^|/)test_[^/]*\.py$|_test\.py$' \
       | head -5000
   )
 }
@@ -106,8 +110,11 @@ tg_candidate_tests() {
     # never by itself (pps #519: helpers were demanded as their own "test")
     base="${f##*/}"; stem="${base%.*}"
     [ "${#stem}" -ge 3 ] || return 0
+    local exe_re='(Test\.php|\.(spec|test)\.[a-z]+)$'
+    # python support (conftest.py, tests/helpers.py): covered by py test files
+    case "$f" in *.py) exe_re='(^|/)test_[^/]*\.py$|_test\.py$' ;; esac
     (cd "$root" 2>/dev/null && printf '%s\n' "$tests" \
-      | grep -E '(Test\.php|\.(spec|test)\.[a-z]+)$' | head -2000 \
+      | grep -E "$exe_re" | head -2000 \
       | tr '\n' '\0' | xargs -0 -r grep -lF -- "$stem" 2>/dev/null | head -10)
     return 0
   fi
@@ -116,8 +123,14 @@ tg_candidate_tests() {
   base="${f##*/}"; stem="${base%.*}"
   [ -z "$stem" ] && return 0
   esc=$(printf '%s' "$stem" | sed 's/[][\\.*^$()+?{}|]/\\&/g')
-  out=$(printf '%s\n' "$tests" \
-    | grep -E "(^|/)(${esc}Test\.php|${esc}\.(spec|test)\.[a-z]+)\$|(^|/)__tests__/${esc}\.[a-z]+\$" 2>/dev/null)
+  case "$f" in
+    *.py) # src/pkg/foo/bar.py -> tests/**/test_bar.py | bar_test.py
+      out=$(printf '%s\n' "$tests" \
+        | grep -E "(^|/)(test_${esc}|${esc}_test)\.py\$" 2>/dev/null) ;;
+    *)
+      out=$(printf '%s\n' "$tests" \
+        | grep -E "(^|/)(${esc}Test\.php|${esc}\.(spec|test)\.[a-z]+)\$|(^|/)__tests__/${esc}\.[a-z]+\$" 2>/dev/null) ;;
+  esac
   if [ -z "$out" ] && [ "${#stem}" -ge 3 ]; then
     out=$(cd "$root" 2>/dev/null && printf '%s\n' "$tests" | head -2000 \
       | tr '\n' '\0' | xargs -0 -r grep -lswF -- "$stem" 2>/dev/null | head -10)
@@ -155,7 +168,7 @@ tg__segment_is_test() {
     # same as their non-phar form, not just the bare binary name.
     case "$base" in *.phar) base="${base%.phar}" ;; esac
     case "$base" in
-      phpunit|paratest|pest|infection|jest|vitest|pytest)
+      phpunit|paratest|pest|infection|jest|vitest|pytest|py.test)
         echo unit; return 0 ;;
       codecept|codeception|behat)
         echo e2e; return 0 ;;
@@ -189,7 +202,16 @@ tg__segment_is_test() {
       magento)
         case "${2:-}" in dev:tests:run*) echo unit; return 0 ;; esac
         return 1 ;;
-      php|npx|node|sudo|time|nice|xvfb-run)
+      uv|poetry|pipenv|pdm|hatch|rye)
+        # Python env runners: `uv run [--opts] pytest`, `poetry run pytest`
+        shift
+        [ "${1:-}" = "run" ] || return 1
+        shift
+        while [ $# -gt 0 ]; do
+          case "$1" in -*) shift ;; *) break ;; esac
+        done
+        depth=$((depth+1)); continue ;;
+      php|npx|node|sudo|time|nice|xvfb-run|uvx|python|python3|python3.[0-9]*|python2*)
         # `node --test ...` is Node's built-in runner (JS units), not a wrapper
         if [ "$base" = "node" ]; then
           local a
@@ -318,16 +340,18 @@ tg_segment_kind() {
     *[/[:space:]]playwright[[:space:]]test*|*[/[:space:]]codecept[[:space:]]*|*[/[:space:]]codeception[[:space:]]*|\
     *[/[:space:]]behat[[:space:]]*) echo e2e; return ;;
     *" node "*--test*|*[/[:space:]]jest[[:space:]]*|*[/[:space:]]vitest[[:space:]]*) echo js; return ;;
+    *[/[:space:]]pytest[[:space:]]*|*[/[:space:]]py.test[[:space:]]*) echo py; return ;;
     *[/[:space:]]composer[[:space:]]*) echo php; return ;;
     *[/[:space:]]npm[[:space:]]*|*[/[:space:]]pnpm[[:space:]]*|*[/[:space:]]yarn[[:space:]]*) echo jsany; return ;;
   esac
   echo other
 }
 
-# Kind of a candidate test file: php | js | spec | other
+# Kind of a candidate test file: php | js | spec | py | other
 tg_test_kind() {
   case "$1" in
     *Test.php) echo php ;;
+    */test_*.py|test_*.py|*_test.py) echo py ;;
     *.test.js|*.test.jsx|*.test.ts|*.test.tsx|*.test.mjs|*/__tests__/*) echo js ;;
     *.spec.js|*.spec.jsx|*.spec.ts|*.spec.tsx|*.spec.mjs) echo spec ;;
     *) echo other ;;
@@ -336,7 +360,7 @@ tg_test_kind() {
 
 tg__kind_ok() { # <run-kind> <test-kind>
   case "$1:$2" in
-    php:php|js:js|js:spec|e2e:spec|jsany:js|jsany:spec|other:other) return 0 ;;
+    php:php|js:js|js:spec|e2e:spec|jsany:js|jsany:spec|py:py|other:other) return 0 ;;
   esac
   return 1
 }
@@ -394,6 +418,7 @@ tg_segment_scope() { # <root> <basedir> <segment>
     case "$tok" in
       --filter|--filter=*|--grep|--grep=*|-g) echo targeted; return ;;
       *Test.php|*.spec.*|*.test.*|*'*'*) echo targeted; return ;;
+      -k|-k?*|*.py|*.py::*) echo targeted; return ;;
       -*|*=*) continue ;;
     esac
     p=$(tg__norm_path "$root" "$base" "$tok")
@@ -421,6 +446,17 @@ tg_run_covers() { # <root> <cmd> <candidate>
     # shellcheck disable=SC2086
     for tok in $(set -f; printf '%s\n' $seg); do
       tok=$(tg__unquote "$tok")
+      if [ "$next" = "kexpr" ]; then
+        # pytest -k: boolean expr of substrings; any non-keyword word that is
+        # a substring of the test's stem or path counts as covering it
+        next=""
+        local w
+        for w in $(printf '%s' "$tok" | tr -c 'A-Za-z0-9_' ' '); do
+          case "$w" in and|or|not) continue ;; esac
+          case "$c" in *"$w"*) return 0 ;; esac
+        done
+        continue
+      fi
       if [ "$next" = "filter" ]; then
         next=""; rx="${tok%%::*}"
         printf '%s\n%s\n' "$stem" "$c" | grep -qE -- "$rx" 2>/dev/null && return 0
@@ -428,6 +464,8 @@ tg_run_covers() { # <root> <cmd> <candidate>
       fi
       case "$tok" in
         --filter) next="filter"; continue ;;
+        -k) [ "$sk" = "py" ] && next="kexpr"; continue ;;
+        *.py::*) tok="${tok%%::*}" ;;
         --filter=*) rx="${tok#--filter=}"; rx="${rx%%::*}"
           printf '%s\n%s\n' "$stem" "$c" | grep -qE -- "$rx" 2>/dev/null && return 0
           continue ;;
