@@ -2,7 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5-1",
+  "model": "opus",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
