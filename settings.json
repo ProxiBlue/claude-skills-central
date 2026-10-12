@@ -563,7 +563,8 @@
   "autoMode": {
     "allow": [
       "$defaults",
-      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json."
+      "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json.",
+      "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification."
     ]
   },
   "mcpServers": {

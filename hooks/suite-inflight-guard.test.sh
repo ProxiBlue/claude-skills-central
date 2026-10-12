@@ -101,6 +101,12 @@ FAKE_REAL=$(mktemp)
 printf '%s\n' '37905 node /var/www/html/tests/apps/node_modules/.bin/playwright test a.spec.ts' > "$FAKE_REAL"
 t 2 "real playwright test alongside mcp" 'bin/magento cache:clean' "$FAKE_REAL"
 rm -f "$FAKE_MCP" "$FAKE_REAL"
+# --- self-match: probe pipeline's own grep stage (2026-10-12, pps #465) -------
+FAKE_SELF=$(mktemp)
+printf '%s\n' "4242 grep -iE playwright test|playwright\\.js test|bin/phpunit|phpunit\\.phar|(^|[ /])phpunit( |\$)|paratest" \
+  '4243 /usr/bin/ugrep --color=auto -iE playwright test' > "$FAKE_SELF"
+t 0 "own grep stage / ugrep wrapper only" 'bin/magento cache:flush' "$FAKE_SELF"
+rm -f "$FAKE_SELF"
 echo 'not json' | bash "$HOOK" >/dev/null 2>&1
 [ $? = 0 ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "FAIL: garbage input should no-op"; }
 

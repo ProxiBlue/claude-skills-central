@@ -89,8 +89,13 @@ get_running_procs() {
 
 # Exclude this hook's own probe (pgrep's own command line matches its own
 # pattern argument), MCP servers, and any line naming the hook itself.
+# Also exclude grep/ugrep processes and any cmdline carrying PROBE_RE verbatim:
+# the downstream `grep -iE "$PROBE_RE"` stage below is alive while pgrep runs,
+# so pgrep matched it and reported a phantom suite (pps #465/#517).
 PROCS=$(get_running_procs 2>/dev/null \
   | grep -viE 'pgrep|suite-inflight-guard|playwright-mcp|@playwright/mcp' \
+  | grep -vE '^[0-9]+[[:space:]]+([^[:space:]]*/)?u?grep[[:space:]]' \
+  | grep -vF -- "$PROBE_RE" \
   | grep -iE "$PROBE_RE")
 
 [ -n "$PROCS" ] || exit 0
