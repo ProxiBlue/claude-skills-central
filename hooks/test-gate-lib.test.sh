@@ -55,6 +55,12 @@ fam "" "quoted pipe is not a runner (pgrep probe)" "pgrep -af 'playwright|phpuni
 fam "unit" "filter regex with pipe stays one segment" 'vendor/bin/phpunit --filter "Up|ProxiBlue"'
 fam "e2e" "quoted grep title with ; and |" "npx playwright test a.spec.ts -g 'x; y | z'"
 
+# --- timeout / env prefixes (2026-10-13, chat 30d3e781) ------------------------
+fam "unit" "timeout prefix"                    "timeout 580 vendor/bin/phpunit -c dev/tests/unit/phpunit.xml.dist"
+fam "e2e"  "timeout with -k and flags"         "timeout -k 10 --preserve-status 5m npx playwright test a.spec.ts"
+fam "e2e"  "env prefix chain"                  "env NODE_TLS_REJECT_UNAUTHORIZED=0 APP_NAME=pps npx playwright test"
+fam ""     "timeout grep is not a run"         "timeout 5 grep -rn phpunit ."
+
 # --- Python runners (2026-10-08) ---------------------------------------------
 fam "unit" "bare pytest"                       "pytest -q tests/"
 fam "unit" "venv pytest path"                  ".venv/bin/pytest tests/test_bar.py"

@@ -98,13 +98,17 @@ while IFS=$'\t' read -r _op seg; do
   case "${1:-}" in
     bash|sh|zsh)
       shift
-      while [ $# -gt 0 ]; do case "$1" in -c) f=""; break ;; -*) shift ;; *) f="$1"; break ;; esac; done ;;
+      # -n = syntax check only, runs nothing (2026-10-13 false positive on
+      # `bash -n hooks/test-gate.sh`).
+      while [ $# -gt 0 ]; do case "$1" in -c|-n) f=""; break ;; -*) shift ;; *) f="$1"; break ;; esac; done ;;
     ./*.sh|/*.sh|*/*.sh|*.sh) f="$1" ;;
   esac
   [ -z "$f" ] && continue
   case "$f" in /*) p="$f" ;; *) p="$CWD/$f" ;; esac
   [ -f "$p" ] || continue
-  if grep -qE "$RUNNER_RE" "$p" 2>/dev/null; then WRAPPER="$f"; break; fi
+  # Comment and echo lines are prose, not invocations: php-debug-guard.sh
+  # mentions phpunit in its help text and was blocked as a "wrapper" (2026-10-13).
+  if grep -vE '^[[:space:]]*(#|echo[[:space:]]|printf[[:space:]])' "$p" 2>/dev/null | grep -qE "$RUNNER_RE"; then WRAPPER="$f"; break; fi
 done <<EOF
 $(tg_split_segments "$CMD")
 EOF

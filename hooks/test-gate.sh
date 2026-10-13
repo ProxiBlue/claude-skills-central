@@ -410,13 +410,36 @@ EOF
     else
       echo "  at the CURRENT state: none."
     fi
-    if [ "$other" -gt 0 ]; then
+    if [ "$other" -gt 0 ] && [ -n "$cur" ]; then
       echo "  $other older record(s) at OTHER states — invalidated because tracked/untracked"
       echo "  files changed after those runs (plan bookkeeping, new tests, staging tidy-ups)."
+    elif [ "$other" -gt 0 ]; then
+      # Zero records at this state: "files changed" is NOT provable here — the
+      # likelier cause after a fresh run is that the run never recorded
+      # (chat 30d3e781: that sentence sent an agent hunting the tree, not the
+      # command, and it re-ran a 3.2 min suite for nothing).
+      echo "  $other record(s) at OTHER states. If you ran tests AFTER your last edit and"
+      echo "  still see nothing at the current state, your run did NOT RECORD — check the"
+      echo "  command shape (below), not the tree."
     fi
+    # Repeat-block detection: same state blocked twice with nothing recorded
+    # in between = the prescribed remedy is not working; say so instead of a
+    # byte-identical message (loop risk, chat 30d3e781).
+    local mk; mk="$(dirname "$EF")/last-block-state"
+    if [ -z "$cur" ] && [ -f "$mk" ] && [ "$(cat "$mk" 2>/dev/null)" = "$HASH" ]; then
+      echo ""
+      echo "  !! BLOCKED AGAIN AT THE SAME STATE ($HASH) with nothing recorded since the"
+      echo "  !! previous block. Re-running the same command will not help: it is not"
+      echo "  !! matching the recorder. Check the command shape — do NOT re-run blindly."
+    fi
+    [ -z "$cur" ] && printf '%s\n' "$HASH" > "$mk" 2>/dev/null
   fi
   echo "  Never recorded at all: runs piped without pipefail, runs the harness moved to"
   echo "  the background, runs inside a wrapper script, and chains where any part failed."
+  echo "  (A leading \`timeout <dur>\` / \`env VAR=..\` prefix IS recorded since 2026-10-13.)"
+  echo "  Verify a run landed BEFORE retrying:"
+  echo "    jq -r 'select(.type==\"test\") | .state' ${EF:-.git/claude-test-gate/evidence.jsonl} | tail -2"
+  echo "    -> must print the current state: $HASH"
   echo ""
 }
 

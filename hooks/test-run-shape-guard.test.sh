@@ -10,6 +10,7 @@ REPO=$(mktemp -d)
 trap 'rm -rf "$REPO"' EXIT
 ( cd "$REPO" && git init -q ) || { echo "FAIL: cannot init scratch repo"; exit 1; }
 printf '#!/bin/bash\ncd tests && npx playwright test --project=chromium\n' > "$REPO/run-suite.sh"
+printf '#!/bin/bash\n# never runs phpunit, only mentions it\necho "use phpunit via xdebug-mcp"\nexit 2\n' > "$REPO/prose-hook.sh"
 printf '#!/bin/bash\necho hello\n' > "$REPO/hello.sh"
 printf '#!/bin/bash\nuv run pytest -q tests\n' > "$REPO/run-py.sh"
 mkdir -p "$REPO/hooks"; printf '#!/bin/bash\n# runs vendor/bin/phpunit\nUNIT_INFRA=1\n' > "$REPO/hooks/test-gate.sh"
@@ -35,6 +36,8 @@ t 2 "python -m pytest | tail"       'python -m pytest 2>&1 | tail -20'
 t 2 "bash wrapper with pytest"      'bash run-py.sh'
 
 # allowed
+t 0 "bash -n syntax check"         'bash -n run-suite.sh'
+t 0 "runner only in comment/echo"   'bash prose-hook.sh'
 t 0 "pipefail + pipe"               'set -o pipefail && vendor/bin/phpunit | tail -5'
 t 0 "plain runner"                  'vendor/bin/phpunit -c dev/tests/unit/phpunit.xml app/code/Up'
 t 0 "pipe before runner"            'cat /dev/null | vendor/bin/phpunit'

@@ -225,6 +225,34 @@ tg__segment_is_test() {
           case "$1" in -*) shift ;; *) break ;; esac
         done
         depth=$((depth+1)); continue ;;
+      timeout)
+        # `timeout [-k DUR] [-s SIG] [--foreground|--preserve-status|-v] DUR cmd`
+        # — the shape background-tasks.md steers agents toward (cap a foreground
+        # run). Was unrecognised, so capped runs passed and recorded NOTHING
+        # (chat 30d3e781, pps #539: two blocked commits, two full re-runs).
+        # Exit status passes through (124 on expiry = failure), so it's safe.
+        shift
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            -k|-s|--kill-after|--signal) shift 2 ;;
+            -*) shift ;;
+            *) break ;;
+          esac
+        done
+        [ $# -gt 0 ] && shift   # the DURATION
+        depth=$((depth+1)); continue ;;
+      env)
+        # `env [-i|-u NAME] VAR=val ... cmd` — VAR=val tokens fall to the
+        # env-prefix case on the next iteration.
+        shift
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            -u|--unset|-C|--chdir) shift 2 ;;
+            -*) shift ;;
+            *) break ;;
+          esac
+        done
+        depth=$((depth+1)); continue ;;
       ddev)
         case "${2:-}" in
           exec|php) shift 2 ;;

@@ -14,6 +14,14 @@
 # permission (deterministic redirect > relying on the agent to remember a
 # prose preference, see rules/feedback_deterministic_hooks.md).
 #
+# 2026-10-13 widened (pvcpipesupplies #517, chat ec6e0e84): ANY partial wipe
+# of a generated/ subdir is trapped, not just `rm -rf generated/code|metadata`:
+# rm with any flags/args order (-r, -fr, -Rf, --recursive, multi-arg), find
+# ... -delete / -exec rm, and php unlink loops. A partial wipe that leaves
+# generated/metadata/*.php behind makes Magento keep the stale compiled DI
+# (preferred over reflection even in developer mode) -> "Argument #N not
+# passed" on every runtime after a constructor change. Whole dir, first resort.
+#
 # Per-project opt-out: add the line `magento-generated-clear-guard` to
 # <repo>/.claude/rules-disable.
 #
@@ -33,18 +41,22 @@ if [ -n "$TOPLEVEL" ] && [ -f "$TOPLEVEL/.claude/rules-disable" ]; then
   grep -qx 'magento-generated-clear-guard' "$TOPLEVEL/.claude/rules-disable" 2>/dev/null && exit 0
 fi
 
-# Matches `rm -rf <opt prefix>generated/code` or `.../generated/metadata`,
-# with or without a trailing /* — either subdir alone is enough to trigger,
-# since the fix is the same regardless of whether one or both are named.
-PATTERN='rm[[:space:]]+-rf[[:space:]]+([^ ]*/)?generated/(code|metadata)([/*]|[[:space:]]|$)'
+# Any partial wipe of a generated/<sub>: rm (any flags, any arg position),
+# find ... -delete / -exec rm, php unlink. `generated/*` itself never matches
+# (the char after generated/ must be a name char, not `*`).
+SEP='[^;&|]*'
+SUB='generated/[A-Za-z0-9_]'
+PATTERN="(^|[^A-Za-z0-9_-])rm[[:space:]]${SEP}(^|[[:space:]/'\"])${SUB}|(^|[^A-Za-z0-9_-])find[[:space:]]${SEP}${SUB}${SEP}(-delete|-exec[[:space:]]+rm)|unlink${SEP}${SUB}|${SUB}${SEP}unlink"
 
 if echo "$CMD" | grep -qE "$PATTERN"; then
-  echo "BLOCKED by magento-generated-clear-guard.sh: narrow generated/ clear in:" >&2
+  echo "BLOCKED by magento-generated-clear-guard.sh: partial generated/ wipe in:" >&2
   echo "  $CMD" >&2
   echo "" >&2
-  echo "generated/ only ever holds code/ and metadata/ in a Magento install —" >&2
-  echo "clear the whole thing in one shot instead:" >&2
-  echo "  rm -rf generated/* (or /var/www/html/generated/* with an absolute path)" >&2
+  echo "A partial wipe leaves stale compiled DI in generated/metadata, which Magento" >&2
+  echo "prefers over reflection even in developer mode (-> 'Argument #N not passed')." >&2
+  echo "Wipe the WHOLE dir, first resort, then clean cache:" >&2
+  echo "  rm -rf generated/* && bin/magento cache:clean" >&2
+  echo "  (or /var/www/html/generated/* with an absolute path)" >&2
   echo "Both forms are already pre-authorized, no permission prompt needed." >&2
   exit 2
 fi

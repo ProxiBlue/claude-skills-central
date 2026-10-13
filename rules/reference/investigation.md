@@ -30,6 +30,7 @@ When a test fails, a system errors, or the user reports a bug, behave as follows
      ```
 
      One Bugsink project per ENVIRONMENT — dev/ddev, uat and prod are separate projects with separate ids, so a wrong id answers the wrong question rather than erroring. Per-project ids and queries: that project's `.claude/bugsink.md`. Cite `friendly_id` plus the top **in-app** frame `file:line`, never a framework frame. No env file where you are running, or no Bugsink project for this repo → say that plainly and skip; never guess at error state.
+   - **uat/live symptom, then: ask the log server.** Bugsink has the exception; the shipped logs have everything around it — HTTP status + latency per URL, nginx/php-fpm errors, PHP + MySQL slow logs, Magento `var/log/*.log`, cron. Onboarded projects carry `logs-uat` / `logs-prod` MCP servers (VictoriaLogs, read-only, tenant forced by token — the server name IS the environment) and a `.claude/logs.md` playbook with verified LogsQL. Order: Bugsink first, then logs for the same window (event timestamp ±2m). This is the ONLY way to read uat/live logs — never SSH for them. Every call 403 → project not onboarded or token unset in this container; say so and skip. Cite the LogsQL query + the rows you concluded from.
 
 3. **Compare to a prior passing run** if artefacts exist. If the same "broken" state existed before this session, say so with the timestamp as evidence. If no prior run exists, say that.
 

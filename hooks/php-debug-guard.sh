@@ -39,7 +39,11 @@ fi
 NEW=$(echo "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // ""' 2>/dev/null)
 [ -z "$NEW" ] && exit 0
 
-PATTERN='(var_dump|print_r|var_export|xdebug_break|ray)[[:space:]]*\(|(^|[^a-zA-Z0-9_$>])(dd|dump)[[:space:]]*\('
+# `ray` / `dd` / `dump` need a left boundary: bare `ray(` matched
+# toOptionArray( (OptionSourceInterface), in_array(, is_array(,
+# Array.isArray( -- chat 30d3e781, pps #539 shipped a text field instead of a
+# <select> because of it. `->ray(` / `::ray(` still caught; `$x->dump(` still allowed.
+PATTERN='(var_dump|print_r|var_export|xdebug_break)[[:space:]]*\(|(^|[^a-zA-Z0-9_$])ray[[:space:]]*\(|(^|[^a-zA-Z0-9_$>])(dd|dump)[[:space:]]*\('
 
 if echo "$NEW" | grep -qE "$PATTERN"; then
   MATCH=$(echo "$NEW" | grep -oE "$PATTERN" | head -1)

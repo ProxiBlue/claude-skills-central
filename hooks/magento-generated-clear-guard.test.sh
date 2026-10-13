@@ -24,12 +24,25 @@ t 2 "code only"                'rm -rf generated/code/*'
 t 2 "metadata only"            'rm -rf /var/www/html/generated/metadata/*'
 t 2 "no trailing star"         'rm -rf generated/code'
 
+t 2 "rm -r"                    'rm -r generated/code'
+t 2 "rm -fr"                   'rm -fr generated/metadata/*'
+t 2 "rm -Rf other subdir"      'rm -Rf generated/vendor'
+t 2 "rm --recursive"           'rm --recursive --force generated/code'
+t 2 "subdir not first arg"     'rm -rf var/cache/* generated/code/*'
+t 2 "find -delete"             'find generated/metadata -name "*.php" -delete'
+t 2 "find -exec rm"            'find /var/www/html/generated/code -type f -exec rm {} +'
+t 2 "php unlink loop"          'php -r '"'"'foreach (glob("generated/metadata/*") as $f) unlink($f);'"'"''
+
 # --- allowed (exit 0) ---------------------------------------------------------
 t 0 "already fixed form"       'rm -rf generated/* var/cache/*'
 t 0 "already fixed absolute"   'rm -rf /var/www/html/generated/* var/cache/*'
 t 0 "unrelated rm"             'rm -rf var/cache/*'
 t 0 "non-magento command"      'echo hello'
 t 0 "cache:flush only"         'bin/magento cache:flush'
+
+t 0 "rm then unrelated ls"     'rm -rf var/cache/* && ls generated/code'
+t 0 "generated star + clean"   'rm -rf generated/* && bin/magento cache:clean'
+t 0 "find without delete"      'find generated/code -name "*.php" | head'
 
 # --- rules-disable opt-out ----------------------------------------------------
 TMP=$(mktemp -d); (
