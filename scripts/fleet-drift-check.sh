@@ -38,7 +38,7 @@ bash "$SCRIPT_DIR/fleet-inventory.sh" > "$RAW" 2>/dev/null
 SCOPE_FILE="$HOME/claude-skills-central/host/tooling-scope.txt"
 in_scope() {
   [ -f "$SCOPE_FILE" ] || return 0
-  # first field = ddev project name; optional second field = stack (magento|python)
+  # first field = ddev project name; optional second field = stack (magento|python|drupal)
   grep -vE '^\s*#|^\s*$' "$SCOPE_FILE" | awk '{print $1}' | grep -qxF "$1"
 }
 

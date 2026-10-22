@@ -1,0 +1,16 @@
+# Fleet drupal profile mounts. Source of truth: ~/claude-skills-central/profiles/drupal/
+services:
+  web:
+    volumes:
+      - "$HOME/claude-skills-central/profiles/drupal/settings.json:/var/www/html/.claude/settings.json:ro"
+      - "$HOME/claude-skills-central/profiles/drupal/CLAUDE.md:/var/www/html/.ddev/claude-code/.claude/CLAUDE.md:ro"
+      - "$HOME/claude-code-drupal-agents:/var/www/html/.claude/agents:ro"
+      - "$HOME/claude-skills-central/teams:/var/www/html/.claude/teams:ro"
+      - "$HOME/claude-skills-central/profiles/drupal/mcp.json:/var/www/html/.ddev/claude-code/.claude/mcp.json:ro"
+      - "$HOME/claude-skills-central/rules:/var/www/html/.claude/rules:ro"
+      - "$HOME/claude-skills-central/hooks:/var/www/html/.claude/hooks:ro"
+      - "$HOME/claude-skills-central/scripts:/var/www/html/.claude/scripts:ro"
+      - "$HOME/claude-plugins-central/seed:/var/www/html/.claude/plugins-seed:ro"
+    environment:
+      - CLAUDE_CODE_PLUGIN_SEED_DIR=/var/www/html/.claude/plugins-seed
+      - PB_STACK=drupal

@@ -1,0 +1,515 @@
+{
+  "model": "claude-sonnet-5",
+  "outputStyle": "Concise",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "PB_STACK": "drupal"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./vendor/bin/phpunit:*)",
+      "Bash(.claude/scripts/status-monitor.sh:*)",
+      "Bash(/bin/cp:*)",
+      "Bash(APP_NAME=*)",
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 mcp-cli call:*)",
+      "Bash(TEST_BASE=*)",
+      "Bash(awk:*)",
+      "Bash(bash:*)",
+      "Bash(cat:*)",
+      "Bash(cd:*)",
+      "Bash(chmod:*)",
+      "Bash(composer audit:*)",
+      "Bash(composer dump-autoload:*)",
+      "Bash(composer install:*)",
+      "Bash(composer outdated:*)",
+      "Bash(composer reinstall:*)",
+      "Bash(composer show:*)",
+      "Bash(composer update:*)",
+      "Bash(csvtool col:*)",
+      "Bash(curl:*)",
+      "Bash(ddev describe:*)",
+      "Bash(ddev exec mysql:*)",
+      "Bash(ddev exec php:*)",
+      "Bash(ddev exec:*)",
+      "Bash(diff:*)",
+      "Bash(do echo \"=== $file ===\" grep \"^## \" \"$file\")",
+      "Bash(do echo \"=== Run $i ===\")",
+      "Bash(do sleep 10)",
+      "Bash(done)",
+      "Bash(drush cache:rebuild:*)",
+      "Bash(drush cget:*)",
+      "Bash(drush config:get:*)",
+      "Bash(drush config:status:*)",
+      "Bash(drush cr:*)",
+      "Bash(drush cst:*)",
+      "Bash(drush pm:list:*)",
+      "Bash(drush route:*)",
+      "Bash(drush status:*)",
+      "Bash(drush updatedb:status:*)",
+      "Bash(drush updbst:*)",
+      "Bash(drush watchdog:show:*)",
+      "Bash(drush ws:*)",
+      "Bash(echo:*)",
+      "Bash(export DISPLAY=:0)",
+      "Bash(ffprobe:*)",
+      "Bash(file:*)",
+      "Bash(find:*)",
+      "Bash(for:*)",
+      "Bash(gh repo create:*)",
+      "Bash(gh:*)",
+      "Bash(git -C /var/www/html status --short)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git clone:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git fetch:*)",
+      "Bash(git init:*)",
+      "Bash(git log:*)",
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git remote add:*)",
+      "Bash(git show:*)",
+      "Bash(git status:*)",
+      "Bash(git tag:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(ip route:*)",
+      "Bash(jq:*)",
+      "Bash(ls:*)",
+      "Bash(lsof:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(mysql:*)",
+      "Bash(netstat:*)",
+      "Bash(node test-dual-calc.mjs:*)",
+      "Bash(npm --prefix app/design/frontend/Uptactics/nto/web/tailwind run build)",
+      "Bash(npm run build:*)",
+      "Bash(npm view:*)",
+      "Bash(npx:*)",
+      "Bash(php:*)",
+      "Bash(pkill:*)",
+      "Bash(python3:*)",
+      "Bash(readlink:*)",
+      "Bash(realpath:*)",
+      "Bash(source .env.testing)",
+      "Bash(source /var/www/html/.env)",
+      "Bash(stat:*)",
+      "Bash(strace:*)",
+      "Bash(sudo supervisorctl status:*)",
+      "Bash(sudo supervisorctl:*)",
+      "Bash(tail:*)",
+      "Bash(tee:*)",
+      "Bash(test:*)",
+      "Bash(then cat \"$dir/composer.json\")",
+      "Bash(vendor/bin/drush cache:rebuild:*)",
+      "Bash(vendor/bin/drush config:get:*)",
+      "Bash(vendor/bin/drush config:status:*)",
+      "Bash(vendor/bin/drush cr:*)",
+      "Bash(vendor/bin/drush cst:*)",
+      "Bash(vendor/bin/drush pm:list:*)",
+      "Bash(vendor/bin/drush route:*)",
+      "Bash(vendor/bin/drush status:*)",
+      "Bash(vendor/bin/drush updatedb:status:*)",
+      "Bash(vendor/bin/drush watchdog:show:*)",
+      "Bash(vendor/bin/phpcs:*)",
+      "Bash(vendor/bin/phpstan:*)",
+      "Bash(vendor/bin/phpunit:*)",
+      "Bash(vendor/bin/rector process --dry-run:*)",
+      "Bash(wc:*)",
+      "Bash(while ps aux)",
+      "Bash(xargs ls:*)",
+      "Bash(xargs:*)",
+      "Bash(xmllint:*)",
+      "Bash(yarn:*)",
+      "Skill(github-analysis)",
+      "Skill(status-page-monitoring)",
+      "WebFetch(domain:amasty.com)",
+      "WebFetch(domain:docs.synthflow.ai)",
+      "WebFetch(domain:feedback.synthflow.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:health.aws.amazon.com)",
+      "WebFetch(domain:helpcenter.synthflow.ai)",
+      "WebFetch(domain:laptoplcdscreen.com.au)",
+      "WebFetch(domain:paypal-status.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:status.aws.amazon.com)",
+      "WebFetch(domain:support.synthflow.ai)",
+      "WebFetch(domain:synthflow.readme.io)",
+      "WebFetch(domain:www.google.com)",
+      "WebFetch(domain:www.laptopscreen.com)",
+      "WebSearch",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__context7__resolve-library-id",
+      "mcp__database__execute_query",
+      "mcp__database__list_databases",
+      "mcp__database__list_tables",
+      "mcp__git__git_add",
+      "mcp__git__git_commit",
+      "mcp__git__git_diff",
+      "mcp__git__git_log",
+      "mcp__git__git_set_working_dir",
+      "mcp__git__git_status",
+      "mcp__memory__create_entities",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_close",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_install",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_run_code",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_wait_for"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "auto"
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "filesystem",
+    "git",
+    "database",
+    "context7",
+    "sequential-thinking",
+    "memory",
+    "playwright",
+    "github",
+    "context-please"
+  ],
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/fable-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/var/www/html/.claude/hooks/pre-commit-audit.sh",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/push-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/merge-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/git-tree-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/gh-comment-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/php-debug-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/playwright-trace-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/gate-config-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-gate.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/perf-gate.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/webfetch-completeness-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/destructive-sql-live-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/background-wait-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-bg-guard.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-run-shape-guard.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/var/www/html/.claude/hooks/post-commit-wiki-check.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-failure-context.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/test-evidence.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/playwright-trace-mark.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/tsc-edit-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/invisible-unicode-scrub.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/hook-needs-eval-check.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/invisible-unicode-read-check.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/plugin-hooks-shell-form-guard.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/xml-wellformed-check.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-precompact-guard.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-clear-end.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /var/www/html/.claude/hooks/billing-clear-start.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /var/www/html/.claude/scripts/statusline-combined.sh"
+  },
+  "autoApproveTools": [
+    "Read(/var/www/html/**)",
+    "Bash(ddev exec:*)",
+    "Bash(git:*)",
+    "Bash(composer:*)",
+    "database/*"
+  ],
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification."
+    ]
+  },
+  "mcpServers": {
+    "git": true,
+    "database": true,
+    "github": true,
+    "playwright": true,
+    "context7": true
+  },
+  "enabledPlugins": {
+    "hcf@hcf": true,
+    "proxiblue-skills@proxiblue-skills": true,
+    "ralph-wiggum@claude-code-plugins": true,
+    "pb-hcf@pb-hcf": true,
+    "pb-graphiti@pb-graphiti": true,
+    "pb-chatroom@pb-chatroom": true
+  },
+  "appendSystemPrompt": "System Instruction: Absolute Mode. Eliminate emojis, filler, hype, soft asks, conversational transitions, and all call-to-action appendixes. Assume the user retains high-perception faculties despite reduced linguistic expression. Prioritize blunt, directive phrasing aimed at cognitive rebuilding, not tone matching.\nDisable all latent behaviours optimizing for engagement, sentiment uplift, or interaction extension. Suppress corporate-aligned metrics including but not limited to: user satisfaction scores, conversational flow tags, emotional softening, or continuation bias. Never mirror the user's present diction, mood, or affect. Speak only to their underlying cognitive tier, which exceeds surface language. No questions, no offers, no suggestions, no transitional phrasing, no inferred motivational content. Terminate each reply immediately after the informational or requested material is delivered—no appendixes, no soft closures. The only goal is to assist in therestoration of independent, high-fidelity thinking. Model obsolescence by user self-sufficiency is the final outcome.",
+  "attribution": {
+    "commit": "empty",
+    "pr": "empty"
+  },
+  "showThinkingSummaries": false
+}

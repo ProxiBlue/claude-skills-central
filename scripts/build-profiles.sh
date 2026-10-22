@@ -57,6 +57,36 @@ gen_python_mcp() {
   ' "$MCP"
 }
 
+# Drupal: PHP stack, so php-debug-guard / perf-gate / composer / vendor/bin / mysql stay;
+# only Magento-specific guards, permissions and MCPs go.
+DR_DROP_HOOKS='magento-generated-clear-guard|magento-static-analysis-guard|magento-config-dump-guard|suite-inflight-guard|python-debug-guard'
+DR_DROP_ALLOW='bin/magento|magento2-dev|n98-magerun|context-please|aheadworks|magefan|hyva|ntotank|uptimerobot|status-check-hook|rm -rf (/var/www/html/)?(var|pub|generated)/|Business-Intelligence|SYNTHFLOW'
+DR_ADD_ALLOW="$(cat "$ROOT/profiles/drupal/allow-extra.json")"
+DR_DROP_MCP='["magento2-dev","magento2-lsp","bricklayer","magento-standards","pb-codegraph","logs-uat","logs-prod","buddy"]'
+
+gen_drupal_settings() {
+  jq --arg drop "$DR_DROP_HOOKS" --arg dropAllow "$DR_DROP_ALLOW" --argjson add "$DR_ADD_ALLOW" '
+    .hooks |= with_entries(.value |= map(
+        .hooks |= map(select((.command // "") | test("/(" + $drop + ")\\.(sh|py)") | not))
+      | select((.hooks | length) > 0)))
+    | .hooks |= with_entries(select((.value | length) > 0))
+    | .permissions.allow = ([.permissions.allow[] | select(test($dropAllow) | not)] + $add | unique)
+    | .permissions.deny = [.permissions.deny[]? | select(test("magento") | not)]
+    | .enabledMcpjsonServers = [.enabledMcpjsonServers[]? | select(. != "magento2-dev")]
+    | .mcpServers = ((.mcpServers // {}) | del(."magento2-dev"))
+    | .autoApproveTools = [.autoApproveTools[]? | select(test("magento") | not)]
+    | .autoMode.allow = [.autoMode.allow[]? | select(test("Magento") | not)]
+    | .enabledPlugins = ((.enabledPlugins // {}) | del(."pb-hcf-playwright-tdd@pb-hcf-playwright-tdd"))
+    | .env.PB_STACK = "drupal"
+  ' "$SETTINGS"
+}
+
+gen_drupal_mcp() {
+  jq --argjson drop "$DR_DROP_MCP" '
+    .mcpServers |= with_entries(select(.key as $k | $drop | index($k) | not))
+  ' "$MCP"
+}
+
 emit() { # emit <target> <content-producing fn>
   local target="$1" tmp; tmp="$(mktemp)"
   "$2" > "$tmp"
@@ -71,4 +101,6 @@ emit() { # emit <target> <content-producing fn>
 rc=0
 emit "$ROOT/profiles/python/settings.json" gen_python_settings || rc=1
 emit "$ROOT/profiles/python/mcp.json"      gen_python_mcp      || rc=1
+emit "$ROOT/profiles/drupal/settings.json" gen_drupal_settings || rc=1
+emit "$ROOT/profiles/drupal/mcp.json"      gen_drupal_mcp      || rc=1
 exit $rc

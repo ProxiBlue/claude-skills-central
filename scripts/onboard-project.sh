@@ -3,6 +3,7 @@
 #
 #   onboard-project.sh --stack=python [--new --name=<ddev-name> --pkg=<py_pkg>] [--force] [--dry-run] [--allow-branch] <project-dir>
 #   onboard-project.sh --stack=magento [--force] [--dry-run] [--allow-branch] <project-dir>
+#   onboard-project.sh --stack=drupal  [--force] [--dry-run] [--allow-branch] <project-dir>
 #
 # Existing project (no --new): writes only the fleet wiring —
 #   .ddev/docker-compose.ai.mounts.yaml  (profile mounts)
@@ -21,6 +22,7 @@ set -euo pipefail
 CENTRAL="$HOME/claude-skills-central"
 PY_TEMPLATE="$HOME/workspace/proxiblue/ddev_project_template_python"
 MAGE_TEMPLATE="$HOME/workspace/proxiblue/ddev_project_template"
+DRUPAL_TEMPLATE="$CENTRAL/profiles/drupal/ddev"   # no full drupal project template; wiring files only
 SCOPE="${ONBOARD_SCOPE_FILE:-$CENTRAL/host/tooling-scope.txt}"   # override for tests
 
 STACK=""; NEW=0; NAME=""; PKG=""; FORCE=0; DRY=0; ALLOW_BRANCH=0; DIR=""
@@ -39,7 +41,7 @@ for a in "$@"; do
   esac
 done
 [ -n "$STACK" ] && [ -n "$DIR" ] || { sed -n '2,6p' "$0" >&2; exit 2; }
-case "$STACK" in python|magento) ;; *) echo "stack must be python|magento" >&2; exit 2 ;; esac
+case "$STACK" in python|magento|drupal) ;; *) echo "stack must be python|magento|drupal" >&2; exit 2 ;; esac
 [ "$NEW" = 1 ] && [ "$STACK" != python ] && { echo "--new is python-only (Magento projects start from composer create-project)" >&2; exit 2; }
 DIR="$(realpath -m "$DIR")"
 
@@ -111,6 +113,11 @@ else
     [ -f "$DIR/.claude/rules-disable" ] || place "$CENTRAL/profiles/python/rules-disable" "$DIR/.claude/rules-disable"
     [ -f "$DIR/.claude/test-gate.json" ] || place "$PY_TEMPLATE/.claude/test-gate.json" "$DIR/.claude/test-gate.json"
     grep -q 'PB_STACK=python' "$DIR/.ddev/config.yaml" || say "NOTE add '- PB_STACK=python' to web_environment in .ddev/config.yaml"
+  elif [ "$STACK" = drupal ]; then
+    place "$DRUPAL_TEMPLATE/docker-compose.ai.mounts.yaml" "$DIR/.ddev/docker-compose.ai.mounts.yaml"
+    place "$DRUPAL_TEMPLATE/config.claude-code.yaml" "$DIR/.ddev/config.claude-code.yaml"
+    [ -f "$DIR/.claude/rules-disable" ] || place "$CENTRAL/profiles/drupal/rules-disable" "$DIR/.claude/rules-disable"
+    grep -q 'PB_STACK=drupal' "$DIR/.ddev/config.yaml" || say "NOTE add '- PB_STACK=drupal' to web_environment in .ddev/config.yaml (ai.mounts also sets it)"
   else
     place "$MAGE_TEMPLATE/.ddev/docker-compose.ai.mounts.yaml" "$DIR/.ddev/docker-compose.ai.mounts.yaml"
     [ -f "$DIR/.ddev/config.claude-code.yaml" ] || place "$MAGE_TEMPLATE/.ddev/config.claude-code.yaml" "$DIR/.ddev/config.claude-code.yaml"

@@ -445,7 +445,8 @@
   ],
   "autoMode": {
     "allow": [
-      "$defaults"
+      "$defaults",
+      "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification."
     ]
   },
   "mcpServers": {
