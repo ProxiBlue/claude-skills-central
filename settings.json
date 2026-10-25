@@ -186,7 +186,18 @@
       "Bash(rm -rf pub/static/:*)",
       "Bash(rm -rf generated/code/:*)",
       "Bash(rm -rf generated/metadata/:*)",
-      "Bash(rm -rf generated/:*)"
+      "Bash(rm -rf generated/:*)",
+      "Bash(n98-magerun2 admin:*)",
+      "Bash(n98-magerun2 customer:*)",
+      "Bash(n98-magerun2 cache:*)",
+      "Bash(n98-magerun2 config:*)",
+      "Bash(n98-magerun2 sys:*)",
+      "Bash(n98-magerun2 dev:*)",
+      "Bash(n98-magerun2 index:*)",
+      "Bash(n98-magerun2 db:info:*)",
+      "Bash(n98-magerun2 db:status:*)",
+      "Bash(bin/magento admin:user:*)",
+      "Bash(bin/magento customer:*)"
     ],
     "deny": [
       "Bash(bin/magento app:config:dump)",
@@ -564,7 +575,23 @@
     "allow": [
       "$defaults",
       "rm on Magento cache/artifact trees under /var/www/html/var/cache/, /var/www/html/var/page_cache/, /var/www/html/var/view_preprocessed/, /var/www/html/pub/static/, /var/www/html/generated/code/, /var/www/html/generated/metadata/ (and their same-name relative equivalents when CWD is /var/www/html) is pre-authorized routine Magento cache cleanup. These paths hold regenerated artifacts, never source code or user data; a nuclear clear followed by cache:flush + setup:upgrade is a well-known Magento troubleshooting sequence. Do NOT flag as 'Dangerous rm operation on critical path' — the paths are explicitly authorized by the operator via ~/claude-skills-central/settings.json.",
-      "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification."
+      "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification.",
+      "Local DDEV sandbox: admin/customer account management on the dev database is routine QA setup, not access escalation. n98-magerun2 admin:user:create / admin:user:change-password / admin:user:delete / admin:token:create, bin/magento admin:user:create / admin:user:unlock, and n98-magerun2 customer:create / customer:change-password set known test credentials so the agent can log into the LOCAL Magento admin or storefront for repro and browser tests. The container is a throwaway DDEV copy with no production exposure; the DB is a scrubbed dev import. Do NOT deny these as 'Access Added As A Means' or credential manipulation — the operator pre-authorizes them via ~/claude-skills-central/settings.json. Production reach exists ONLY via ssh to hosts named live/prod/uat and via git push to the live/uat branches; those remain guarded by hooks and are NOT covered by this allowance."
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: ProxiBlue (solo operator, Lucas); every project here is a client e-commerce or internal tool codebase",
+      "**Host containment**: Claude Code runs INSIDE a DDEV docker container (web service) on the operator's own workstation. /var/www/html is a bind-mount of a local git checkout. Everything the agent can touch directly — files, MySQL/MariaDB, Redis, Elasticsearch/OpenSearch, cron, admin users, customer records, config — is a LOCAL development sandbox with no production exposure. Treat the container as disposable; `ddev delete` + re-import rebuilds it.",
+      "**Local database**: a scrubbed dev import of the client site. Creating/editing/deleting admin users, customers, orders, config values, cache, indexes, or test data in it is routine local work and never touches production. Only `rm` on source code, git history rewrites, and secrets exfiltration are genuinely risky here.",
+      "**Sensitive remote targets**: any ssh host, URL, DB DSN or container whose name carries `live`, `prod`, `production` or `uat` as a whole word or name segment; anything reached over ssh is remote and sensitive. Local DDEV hostnames (`*.ddev.site`, `host.docker.internal`, `127.0.0.1`, `db`, `web`) are NOT sensitive.",
+      "**Protected deployment paths**: `git push` to branches named `live`, `uat`, `main`/`master`; ssh/rsync/scp/mysql to any remote host. These are already guarded by operator PreToolUse hooks (push-guard, merge-guard, destructive-sql-live-guard); the hooks, not the classifier, are the authority there.",
+      "**Repository visibility**: private GitHub/GitLab repos owned by ProxiBlue or its clients",
+      "**Secrets management**: credentials live in app/etc/env.php, .env, .ddev/.env and ~/.config; never paste them to external services. Setting a KNOWN test password on a LOCAL admin/customer account is not a secret leak.",
+      "**Internal sharing / snippet hosting**: none — public paste/gist services are outside the trust boundary",
+      "**Trusted internal domains**: *.ddev.site, host.docker.internal (operator's host services: graphiti, chatroom, bugsink, victorialogs)",
+      "### User-specific",
+      "**Primary use of Claude Code**: Magento/Mage-OS, Drupal and Python development, test authoring, local QA repro. Browser-based repro against the local admin (needs a known admin login) is a daily task.",
+      "**Org-specific CLIs**: bin/magento, n98-magerun2, ddev, composer, drush, uv/pytest — all operate on the local sandbox unless given an explicit remote host."
     ]
   },
   "mcpServers": {

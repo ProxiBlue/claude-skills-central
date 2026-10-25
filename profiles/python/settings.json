@@ -447,6 +447,21 @@
     "allow": [
       "$defaults",
       "Test-runner commands shaped cd <dir> && set -o pipefail && <runner> ... [| tail -N], runner = vendor/bin/phpunit, bin/phpunit, paratest or npx playwright test (inline env assignments OK), are routine test runs. set -o pipefail is a per-command option the test-gate evidence recorder requires (test-run-shape-guard.sh demands this exact shape), not shell-config or agent self-modification."
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: ProxiBlue (solo operator, Lucas); every project here is a client e-commerce or internal tool codebase",
+      "**Host containment**: Claude Code runs INSIDE a DDEV docker container (web service) on the operator's own workstation. /var/www/html is a bind-mount of a local git checkout. Everything the agent can touch directly — files, MySQL/MariaDB, Redis, Elasticsearch/OpenSearch, cron, admin users, customer records, config — is a LOCAL development sandbox with no production exposure. Treat the container as disposable; `ddev delete` + re-import rebuilds it.",
+      "**Local database**: a scrubbed dev import of the client site. Creating/editing/deleting admin users, customers, orders, config values, cache, indexes, or test data in it is routine local work and never touches production. Only `rm` on source code, git history rewrites, and secrets exfiltration are genuinely risky here.",
+      "**Sensitive remote targets**: any ssh host, URL, DB DSN or container whose name carries `live`, `prod`, `production` or `uat` as a whole word or name segment; anything reached over ssh is remote and sensitive. Local DDEV hostnames (`*.ddev.site`, `host.docker.internal`, `127.0.0.1`, `db`, `web`) are NOT sensitive.",
+      "**Protected deployment paths**: `git push` to branches named `live`, `uat`, `main`/`master`; ssh/rsync/scp/mysql to any remote host. These are already guarded by operator PreToolUse hooks (push-guard, merge-guard, destructive-sql-live-guard); the hooks, not the classifier, are the authority there.",
+      "**Repository visibility**: private GitHub/GitLab repos owned by ProxiBlue or its clients",
+      "**Secrets management**: credentials live in app/etc/env.php, .env, .ddev/.env and ~/.config; never paste them to external services. Setting a KNOWN test password on a LOCAL admin/customer account is not a secret leak.",
+      "**Internal sharing / snippet hosting**: none — public paste/gist services are outside the trust boundary",
+      "**Trusted internal domains**: *.ddev.site, host.docker.internal (operator's host services: graphiti, chatroom, bugsink, victorialogs)",
+      "### User-specific",
+      "**Primary use of Claude Code**: Magento/Mage-OS, Drupal and Python development, test authoring, local QA repro. Browser-based repro against the local admin (needs a known admin login) is a daily task.",
+      "**Org-specific CLIs**: bin/magento, n98-magerun2, ddev, composer, drush, uv/pytest — all operate on the local sandbox unless given an explicit remote host."
     ]
   },
   "mcpServers": {
