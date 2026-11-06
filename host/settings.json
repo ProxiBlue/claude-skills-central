@@ -2,6 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "model": "opus",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
