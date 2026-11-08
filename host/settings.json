@@ -1,6 +1,13 @@
 {
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(docker run --rm --name silhouette-spike *)",
+      "Bash(docker build -t pdftovec-silhouette:latest *)",
+      "Bash(docker exec ddev-pdftovec-silhouette *)",
+      "Bash(docker exec silhouette-spike *)",
+      "Bash(ddev silhouette *)"
+    ]
   },
   "model": "opus",
   "skillOverrides": {
