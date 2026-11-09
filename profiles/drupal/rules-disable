@@ -1,5 +1,6 @@
 magento-generated-clear-guard
 magento-config-dump-guard
+magento-recaptcha-guard
 magento-static-analysis-guard
 suite-inflight-guard
 python-debug-guard

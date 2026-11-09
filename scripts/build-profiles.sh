@@ -21,7 +21,7 @@ CHECK=0; [ "${1:-}" = "--check" ] && CHECK=1
 command -v jq >/dev/null || { echo "build-profiles: jq required" >&2; exit 2; }
 
 # Hooks that only make sense on Magento/PHP. Matched on the script basename.
-PY_DROP_HOOKS='magento-generated-clear-guard|magento-static-analysis-guard|magento-config-dump-guard|php-debug-guard|perf-gate|suite-inflight-guard'
+PY_DROP_HOOKS='magento-generated-clear-guard|magento-static-analysis-guard|magento-config-dump-guard|magento-recaptcha-guard|php-debug-guard|perf-gate|suite-inflight-guard'
 # Permission entries that are Magento/PHP/one-off project cruft.
 PY_DROP_ALLOW='bin/magento|magento2-dev|composer|vendor/bin|(^|[( ])php[ :]|ddev exec php|mysql|n98-magerun|mcp__database__|context-please|xmllint|aheadworks|magefan|hyva|ntotank|uptimerobot|status-check-hook|rm -rf (/var/www/html/)?(var|pub|generated)/|Business-Intelligence|SYNTHFLOW|\$dir/composer'
 # Python-only permission additions live in a data file so this script never
@@ -59,7 +59,7 @@ gen_python_mcp() {
 
 # Drupal: PHP stack, so php-debug-guard / perf-gate / composer / vendor/bin / mysql stay;
 # only Magento-specific guards, permissions and MCPs go.
-DR_DROP_HOOKS='magento-generated-clear-guard|magento-static-analysis-guard|magento-config-dump-guard|suite-inflight-guard|python-debug-guard'
+DR_DROP_HOOKS='magento-generated-clear-guard|magento-static-analysis-guard|magento-config-dump-guard|magento-recaptcha-guard|suite-inflight-guard|python-debug-guard'
 DR_DROP_ALLOW='bin/magento|magento2-dev|n98-magerun|context-please|aheadworks|magefan|hyva|ntotank|uptimerobot|status-check-hook|rm -rf (/var/www/html/)?(var|pub|generated)/|Business-Intelligence|SYNTHFLOW'
 DR_ADD_ALLOW="$(cat "$ROOT/profiles/drupal/allow-extra.json")"
 DR_DROP_MCP='["magento2-dev","magento2-lsp","bricklayer","magento-standards","pb-codegraph","logs-uat","logs-prod","buddy"]'

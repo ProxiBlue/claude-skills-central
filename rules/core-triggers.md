@@ -4,6 +4,7 @@ Full rules live in `claude-skills-central/rules/reference/` (host: `~/claude-ski
 
 | Trigger | Action |
 |---|---|
+| A test SKIPS because a protection/feature is off in DDEV (reCAPTCHA, CSP, payment step), or Magento reCAPTCHA gets in a test's way | Red flag, never accept the skip: fix the env so test runs with it on. reCAPTCHA stays on everywhere; pass it with `skills/recaptcha-env-parity` test token. `magento-recaptcha-guard.sh` blocks disabling. (LCD #448: skipped test hid broken register on live ~5 days.) |
 | Test fails, system errors, user reports bug | Read `investigation.md` FIRST. Blast radius (`git diff --stat HEAD`) before any hypothesis. Claim without artefact cite = banned. (Test failures also auto-inject compact protocol via hook.) |
 | About to background a command you need the result of (`&`, `nohup`), or to write any `pgrep`/`kill -0`/marker-file wait loop | Read `background-tasks.md`. Don't. Run it in the foreground with a Bash `timeout`; if it won't fit, narrow the run. `background-wait-guard.sh` blocks both shapes. Subagents lacking `Monitor`/`BashOutput` must hand the run back to the orchestrator, never poll. |
 | Playwright test timeout/failure, editing `.spec.ts`/`.page.ts`/`playwright.config.ts` after one | Read `playwright-debugging.md` FIRST. Open `trace.zip`, cite the actual failure line, before editing the test — `playwright-trace-guard.sh` blocks the edit otherwise. Mage-OS 3.3.0+ admin grids: known bulk-edit-panel phantom-row gotcha documented there. |

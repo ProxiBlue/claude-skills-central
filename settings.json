@@ -401,6 +401,16 @@
         ]
       },
       {
+        "matcher": "Edit|Write|Bash|mcp__database__execute_query|mcp__magento2-dev__db-query",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /var/www/html/.claude/hooks/magento-recaptcha-guard.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
