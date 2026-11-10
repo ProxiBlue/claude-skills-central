@@ -1,15 +1,15 @@
 {
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Bash(docker run --rm --name silhouette-spike *)",
       "Bash(docker build -t pdftovec-silhouette:latest *)",
       "Bash(docker exec ddev-pdftovec-silhouette *)",
       "Bash(docker exec silhouette-spike *)",
       "Bash(ddev silhouette *)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
-  "model": "opus",
+  "model": "fable",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
@@ -294,13 +294,20 @@
     "typescript-lsp@claude-plugins-official": true,
     "pb-graphiti@pb-graphiti": true,
     "pb-chatroom@pb-chatroom": true,
-    "hcf@hcf": true
+    "hcf@hcf": true,
+    "cloudflare@cloudflare": true
   },
   "extraKnownMarketplaces": {
     "hcf": {
       "source": {
         "source": "github",
         "repo": "markshust/hcf"
+      }
+    },
+    "cloudflare": {
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/skills"
       }
     }
   },

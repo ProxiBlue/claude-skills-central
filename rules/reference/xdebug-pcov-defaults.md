@@ -60,6 +60,11 @@ Neither DDEV mechanism supports "load pcov but not for FPM" or "off by default, 
    `xdebug_trigger.ini`/`30_xdebug_trigger.ini` stubs alone, those are a separate lightweight
    trigger mechanism, not the full instrumented loader. Runs on every `ddev start`, so it wins
    even if something else re-enables the ini between restarts.
+   **Must be the FIRST `post-start` entry.** A fresh container still has the xdebug ini, so any
+   PHP run by an earlier hook (n98-magerun2, composer, bin/magento) loads xdebug, PHP prints
+   `Warning: JIT is incompatible with third party extensions...`, and tools that parse PHP
+   output break (lcd-mageos 2026-11-10: magerun "Magento Core Commands cannot be loaded" on
+   every restart, because the strip sat after a `n98-magerun2 db:query` hook).
 3. `ddev xdebug on` remains available as a manual, rare-case toggle for live-request
    step-debugging over FPM (requires a supervisor restart, unlike CLI — CLI never needs it) —
    but that's a **host** command. A Claude session running inside the container being

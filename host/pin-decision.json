@@ -1,6 +1,6 @@
 {
-  "fleet_target": "2.1.316",
-  "set_on": "2026-11-01",
+  "fleet_target": "2.1.321",
+  "set_on": "2026-11-10",
   "review_after_days": 21,
   "releases_behind_threshold": 20,
   "note": "Stability posture: fleet deliberately trails upstream. Lag threshold 20 = fires only on genuinely large drift, not on a fresh deliberate hold. 2.1.258 = the eval-verified version.",
@@ -39,6 +39,11 @@
       "version": "2.1.316",
       "set_on": "2026-11-01",
       "reason": "moved after rule-evals"
+    },
+    {
+      "version": "2.1.321",
+      "set_on": "2026-11-10",
+      "reason": "moved after rule-evals 2026-11-10: evals 1-7, 9 and all 33 hook unit tests pass on 2.1.321; eval 8 caveman-register fails (judge: register caveman, technical_content_ok false on a correct answer) identically on 2.1.316, 3/3 on candidate + 1/1 on baseline, so judge issue, not a version regression; owner approved the move. Adds Fable 5.2; fixes MCP OAuth token leak + Bash sandbox bypass."
     }
   ]
 }
