@@ -9,7 +9,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "fable",
+  "model": "opus",
   "skillOverrides": {
     "proxiblue-skills:billing-invoice": "on",
     "hcf:plan-create": "on",
@@ -295,7 +295,8 @@
     "pb-graphiti@pb-graphiti": true,
     "pb-chatroom@pb-chatroom": true,
     "hcf@hcf": true,
-    "cloudflare@cloudflare": true
+    "cloudflare@cloudflare": true,
+    "pb-board@pb-board": true
   },
   "extraKnownMarketplaces": {
     "hcf": {
@@ -309,6 +310,20 @@
         "source": "github",
         "repo": "cloudflare/skills"
       }
+    },
+    "pb-board": {
+      "source": {
+        "source": "directory",
+        "path": "/home/lucas/claude-plugins-central/seed/marketplaces/pb-board"
+      }
+    }
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "xhigh"
+    },
+    "claude-fable-5-2": {
+      "effortLevel": "high"
     }
   },
   "pluginConfigs": {
@@ -318,7 +333,7 @@
       }
     }
   },
-  "tui": "default",
+  "tui": "fullscreen",
   "skipAutoPermissionPrompt": true,
   "autoMode": {
     "environment": [
