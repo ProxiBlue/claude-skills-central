@@ -1,0 +1,16 @@
+hooks:
+  post-start:
+    # Docker creates bind-mount parents as root; claude needs to write its home + project .claude/.
+    - exec: "sudo chown -R $(id -un):$(id -gn) /var/www/html/.ddev/claude-code 2>/dev/null || true"
+    - exec: "sudo chown $(id -un):$(id -gn) /var/www/html/.claude 2>/dev/null || true"
+    - exec: "[[ -f /var/www/html/.ddev/claude-code/.claude.json ]] || echo '{}' > /var/www/html/.ddev/claude-code/.claude.json"
+    - exec: "rm ~/.claude.json || true; ln -s /var/www/html/.ddev/claude-code/.claude.json ~/.claude.json"
+    - exec: "rm -rf ~/.claude || true; mkdir -p /var/www/html/.ddev/claude-code/.claude && ln -s /var/www/html/.ddev/claude-code/.claude ~/.claude"
+    - exec: "bash /var/www/html/.claude/hooks/seed-plugin-config.sh"
+    - exec: "bash /var/www/html/.claude/hooks/sync-plugin-marketplaces.sh"
+    - exec: "bash /var/www/html/.claude/hooks/install-context-mode.sh"
+
+web_environment:
+  - GLAB_CONFIG_DIR=/var/www/html/.ddev/.glab-cli/
+  - GH_TOKEN=$GH_TOKEN
+  - CLAUDE_CODE_PLUGIN_SEED_DIR=/var/www/html/.claude/plugins-seed

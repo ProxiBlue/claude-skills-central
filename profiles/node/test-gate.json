@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "required_families": ["unit"],
+  "code_patterns": ["^src/.*\\.(ts|tsx|js|jsx|mjs|cjs)$"],
+  "exempt_patterns": ["\\.d\\.ts$", "^scripts/", "^docs/", "\\.md$"]
+}

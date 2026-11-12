@@ -87,6 +87,36 @@ gen_drupal_mcp() {
   ' "$MCP"
 }
 
+# Node / TypeScript: no PHP or Python, so drop both stacks' guards; keep tsc-edit-check,
+# playwright-trace-guard, test-gate etc. buddy MCP stays (node projects may deploy via Buddy).
+NO_DROP_HOOKS="$PY_DROP_HOOKS|python-debug-guard"
+NO_DROP_ALLOW="$PY_DROP_ALLOW"
+NO_ADD_ALLOW="$(cat "$ROOT/profiles/node/allow-extra.json")"
+NO_DROP_MCP='["database","magento2-dev","magento2-lsp","bricklayer","magento-standards","xdebug","pb-codegraph","logs-uat","logs-prod"]'
+
+gen_node_settings() {
+  jq --arg drop "$NO_DROP_HOOKS" --arg dropAllow "$NO_DROP_ALLOW" --argjson add "$NO_ADD_ALLOW" '
+    .hooks |= with_entries(.value |= map(
+        .hooks |= map(select((.command // "") | test("/(" + $drop + ")\\.(sh|py)") | not))
+      | select((.hooks | length) > 0)))
+    | .hooks |= with_entries(select((.value | length) > 0))
+    | .permissions.allow = ([.permissions.allow[] | select(test($dropAllow) | not)] + $add | unique)
+    | .permissions.deny = [.permissions.deny[]? | select(test("magento|composer|php") | not)]
+    | .enabledMcpjsonServers = [.enabledMcpjsonServers[]? | select(. != "database" and . != "magento2-dev")]
+    | .mcpServers = ((.mcpServers // {}) | del(.database, ."magento2-dev"))
+    | .autoApproveTools = [.autoApproveTools[]? | select(test("composer|magento|database") | not)]
+    | .autoMode.allow = [.autoMode.allow[]? | select(test("Magento") | not)]
+    | .enabledPlugins = ((.enabledPlugins // {}) | del(."pb-hcf-playwright-tdd@pb-hcf-playwright-tdd"))
+    | .env.PB_STACK = "node"
+  ' "$SETTINGS"
+}
+
+gen_node_mcp() {
+  jq --argjson drop "$NO_DROP_MCP" '
+    .mcpServers |= with_entries(select(.key as $k | $drop | index($k) | not))
+  ' "$MCP"
+}
+
 emit() { # emit <target> <content-producing fn>
   local target="$1" tmp; tmp="$(mktemp)"
   "$2" > "$tmp"
@@ -95,7 +125,11 @@ emit() { # emit <target> <content-producing fn>
     if ! cmp -s "$tmp" "$target"; then echo "STALE: $target (run scripts/build-profiles.sh)"; rm -f "$tmp"; return 1; fi
     rm -f "$tmp"; return 0
   fi
-  mv "$tmp" "$target"; chmod 644 "$target"; echo "wrote $target"
+  if cmp -s "$tmp" "$target"; then rm -f "$tmp"; echo "unchanged $target"; return 0; fi
+  # Write IN PLACE when the target exists: running containers single-file bind-mount
+  # these by inode, and mv would orphan their view until the next ddev restart.
+  if [ -f "$target" ]; then cat "$tmp" > "$target"; rm -f "$tmp"; else mv "$tmp" "$target"; fi
+  chmod 644 "$target"; echo "wrote $target"
 }
 
 rc=0
@@ -103,4 +137,6 @@ emit "$ROOT/profiles/python/settings.json" gen_python_settings || rc=1
 emit "$ROOT/profiles/python/mcp.json"      gen_python_mcp      || rc=1
 emit "$ROOT/profiles/drupal/settings.json" gen_drupal_settings || rc=1
 emit "$ROOT/profiles/drupal/mcp.json"      gen_drupal_mcp      || rc=1
+emit "$ROOT/profiles/node/settings.json"   gen_node_settings   || rc=1
+emit "$ROOT/profiles/node/mcp.json"        gen_node_mcp        || rc=1
 exit $rc

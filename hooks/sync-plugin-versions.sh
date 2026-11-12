@@ -10,6 +10,12 @@
 #     current version (degrade to no-op, never to broken).
 #   * idempotent: same seed version => skip.
 #
+# Scopes advanced: every `user` entry, plus `project` entries whose projectPath
+# is this container's project (PB_PLUGIN_SYNC_PROJECT, default /var/www/html).
+# Before 2026-11-12 only `user` was advanced, so a container whose plugins were
+# all installed project-scope (ahhgg) silently froze on its first-install
+# versions while reporting "0 change(s)".
+#
 # Usage: sync-plugin-versions.sh [--dry-run] [SEED_MP_DIR] [PLUGINS_DIR]
 set -u
 
@@ -20,9 +26,12 @@ SEED_MP_DIR="${1:-/var/www/html/.claude/plugins-seed/marketplaces}"
 PLUGINS_DIR="${2:-$HOME/.claude/plugins}"
 MANIFEST="$PLUGINS_DIR/installed_plugins.json"
 
-# Plugins to NEVER auto-advance (major upgrades needing manual migration).
-# Space-separated; matched against plugin OR marketplace name. Override via env.
+# Plugins never auto-advanced ACROSS a major version (major upgrades need manual
+# migration, e.g. hcf 1.x -> 2.x). Same-major bumps (2.0.0 -> 2.0.1) still
+# advance. Space-separated; matched against plugin OR marketplace name. Env override.
 EXCLUDE="${PB_PLUGIN_SYNC_EXCLUDE:-hcf}"
+PROJECT_PATH="${PB_PLUGIN_SYNC_PROJECT:-/var/www/html}"
+major() { echo "${1%%.*}"; }
 
 command -v jq >/dev/null || { echo "[sync-versions] jq missing; skip"; exit 0; }
 [ -f "$MANIFEST" ] || { echo "[sync-versions] no manifest; skip"; exit 0; }
@@ -36,25 +45,34 @@ keys="$(jq -r '.plugins | keys[]' "$MANIFEST" 2>/dev/null)" || exit 0
 for key in $keys; do
   plugin="${key%@*}"
   marketplace="${key#*@}"
-  # Skip excluded plugins (major upgrades needing manual migration).
-  skip=0
-  for ex in $EXCLUDE; do
-    [ "$ex" = "$plugin" ] || [ "$ex" = "$marketplace" ] && { skip=1; break; }
-  done
-  [ "$skip" = 1 ] && { echo "[sync-versions] $key: excluded"; continue; }
-
   seed_pj="$SEED_MP_DIR/$marketplace/.claude-plugin/plugin.json"
   [ -f "$seed_pj" ] || continue          # not a locally-seeded plugin; leave alone
   seed_ver="$(jq -r '.version // empty' "$seed_pj" 2>/dev/null)"
   [ -n "$seed_ver" ] || continue
 
-  # Current user-scope installed version for this plugin.
-  cur_ver="$(jq -r --arg k "$key" '.plugins[$k][] | select(.scope=="user") | .version' "$MANIFEST" 2>/dev/null | head -1)"
-  [ -n "$cur_ver" ] || continue
-  [ "$cur_ver" = "$seed_ver" ] && continue   # already current
+  # Installed versions in the scopes we manage (user + this project's project scope).
+  vers="$(jq -r --arg k "$key" --arg pp "$PROJECT_PATH" '
+      .plugins[$k][] | select(.scope=="user" or (.scope=="project" and .projectPath==$pp)) | .version
+    ' "$MANIFEST" 2>/dev/null | sort -u)"
+  [ -n "$vers" ] || continue
+  stale="$(echo "$vers" | grep -vxF "$seed_ver" || true)"
+  [ -n "$stale" ] || continue                # every managed entry already current
+
+  # Excluded plugins: advance only within the same major.
+  excluded=0
+  for ex in $EXCLUDE; do
+    { [ "$ex" = "$plugin" ] || [ "$ex" = "$marketplace" ]; } && { excluded=1; break; }
+  done
+  if [ "$excluded" = 1 ]; then
+    cross="$(for v in $stale; do [ "$(major "$v")" = "$(major "$seed_ver")" ] || echo "$v"; done)"
+    if [ -n "$cross" ]; then
+      echo "[sync-versions] $key: excluded ($(echo $cross | tr ' ' ',') -> $seed_ver crosses a major; migrate by hand)"
+      continue
+    fi
+  fi
 
   new_dir="$PLUGINS_DIR/cache/$marketplace/$plugin/$seed_ver"
-  echo "[sync-versions] $key: $cur_ver -> $seed_ver"
+  echo "[sync-versions] $key: $(echo $stale | tr ' ' ',') -> $seed_ver"
   if [ "$DRY" = 1 ]; then changed=$((changed+1)); continue; fi
 
   # Materialise the new version dir from the seed (exclude VCS metadata).
@@ -63,12 +81,13 @@ for key in $keys; do
     echo "  ! copy failed; skip"; continue
   fi
 
-  # Repoint the manifest entry (validated temp + backup + restore-on-fail).
+  # Repoint the managed manifest entries (validated temp + backup + restore-on-fail).
+  # Excluded plugins only reach here when no managed entry crosses a major.
   cp -f "$MANIFEST" "$MANIFEST.bak" 2>/dev/null
   tmp="$MANIFEST.tmp.$$"
-  if jq --arg k "$key" --arg ver "$seed_ver" --arg path "$new_dir" --arg ts "$now" '
+  if jq --arg k "$key" --arg ver "$seed_ver" --arg path "$new_dir" --arg ts "$now" --arg pp "$PROJECT_PATH" '
         .plugins[$k] |= map(
-          if .scope=="user"
+          if (.scope=="user" or (.scope=="project" and .projectPath==$pp)) and .version != $ver
           then .version=$ver | .installPath=$path | .lastUpdated=$ts
           else . end)
       ' "$MANIFEST" > "$tmp" 2>/dev/null && jq empty "$tmp" 2>/dev/null; then
@@ -78,7 +97,7 @@ for key in $keys; do
   else
     rm -f "$tmp"
     [ -f "$MANIFEST.bak" ] && cp -f "$MANIFEST.bak" "$MANIFEST"
-    echo "  ! manifest update failed; restored, left on $cur_ver"
+    echo "  ! manifest update failed; restored, left on $(echo $stale | tr ' ' ',')"
   fi
 done
 
