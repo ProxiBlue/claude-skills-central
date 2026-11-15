@@ -39,6 +39,7 @@ usage          $DIR/usage_telemetry.py                   ''               8     
 evals          $DIR/rule-evals.sh                        --notify         32       monthly
 dashboard      $DIR/telemetry_dashboard.py               ''               2        daily
 harness        $DIR/harness-release-watch.sh             ''               2        daily
+hcf            $DIR/hcf-upstream-watch.sh                ''               2        daily
 pin            $DIR/pin-age-check.sh                      ''               2        daily
 graphiti-backup $GRAPHITI_BACKUP                         ''               2        daily
 graphiti-offsite $DIR/backup-offsite.sh                  ''               2        daily
@@ -77,6 +78,8 @@ run_job() {
              "Rule evals FAILING" "$(echo "$out" | grep -E ' FAIL |fail=[1-9]' | head -4)" ;;
     harness) echo "$out" | grep -q 'alert posted' && notify_alert normal \
              "New claude-code release" "$(echo "$out" | tail -1)" ;;
+    hcf)   echo "$out" | grep -q 'alert posted' && notify_alert normal \
+             "HCF upstream ahead of mirror" "$(echo "$out" | grep 'alert posted' | tail -1)" ;;
   esac
   return $rc
 }
@@ -117,7 +120,7 @@ case "${1:-}" in
   health) [ "${2:-}" = "--notify" ] && health_notify || health ;;
   alerts) tail -n "${2:-20}" "$ALERT_LOG" 2>/dev/null | tac ;;
   test-alert) notify_alert "${2:-normal}" "monitor test alert" "desktop + email + logged; findable in 'monitor alerts' and on the dashboard" ; echo "sent" ;;
-  all-daily)  for j in harness pin dashboard bugsink-pull dep-audit; do echo "-- $j"; run_job "$j"; done; health_notify >/dev/null ;;
+  all-daily)  for j in harness hcf pin dashboard bugsink-pull dep-audit; do echo "-- $j"; run_job "$j"; done; health_notify >/dev/null ;;
   all-backup) run_job graphiti-backup && run_job graphiti-offsite ;;
   all-weekly) for j in drift usage; do echo "-- $j"; run_job "$j"; done ;;
   "" ) echo "usage: monitor <job|all-daily|all-weekly|health|list>"; exit 2 ;;

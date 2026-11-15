@@ -170,7 +170,7 @@ def read_crons():
 
 # job name -> max age in days before STALE (mirrors monitor.sh registry)
 JOB_MAXAGE = {"drift": 8, "usage": 8, "evals": 32, "dashboard": 2,
-              "harness": 2, "pin": 2, "graphiti-backup": 2}
+              "harness": 2, "hcf": 2, "pin": 2, "graphiti-backup": 2}
 
 def collectors_health():
     """Read ~/monitor/heartbeats/<job> (iso\\trc\\tdur). Return list of

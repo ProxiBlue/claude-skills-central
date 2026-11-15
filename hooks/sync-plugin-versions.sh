@@ -63,11 +63,17 @@ for key in $keys; do
   for ex in $EXCLUDE; do
     { [ "$ex" = "$plugin" ] || [ "$ex" = "$marketplace" ]; } && { excluded=1; break; }
   done
+  # Decided per entry, not per plugin: a leftover cross-major entry (a
+  # user-scope hcf 1.1.1 beside the project-scope 2.0.x) is held and reported,
+  # and the same-major entries beside it still advance. Before 2026-11-15 one
+  # such leftover froze the whole plugin, so hcf 2.0.1 -> 2.0.2 never landed
+  # on restart in pps and lcd.
   if [ "$excluded" = 1 ]; then
     cross="$(for v in $stale; do [ "$(major "$v")" = "$(major "$seed_ver")" ] || echo "$v"; done)"
     if [ -n "$cross" ]; then
       echo "[sync-versions] $key: excluded ($(echo $cross | tr ' ' ',') -> $seed_ver crosses a major; migrate by hand)"
-      continue
+      stale="$(for v in $stale; do [ "$(major "$v")" = "$(major "$seed_ver")" ] && echo "$v"; done)"
+      [ -n "$stale" ] || continue
     fi
   fi
 
@@ -85,9 +91,11 @@ for key in $keys; do
   # Excluded plugins only reach here when no managed entry crosses a major.
   cp -f "$MANIFEST" "$MANIFEST.bak" 2>/dev/null
   tmp="$MANIFEST.tmp.$$"
-  if jq --arg k "$key" --arg ver "$seed_ver" --arg path "$new_dir" --arg ts "$now" --arg pp "$PROJECT_PATH" '
+  if jq --arg k "$key" --arg ver "$seed_ver" --arg path "$new_dir" --arg ts "$now" --arg pp "$PROJECT_PATH" \
+        --arg excl "$excluded" '
         .plugins[$k] |= map(
           if (.scope=="user" or (.scope=="project" and .projectPath==$pp)) and .version != $ver
+             and ($excl != "1" or ((.version // "") | split(".")[0]) == ($ver | split(".")[0]))
           then .version=$ver | .installPath=$path | .lastUpdated=$ts
           else . end)
       ' "$MANIFEST" > "$tmp" 2>/dev/null && jq empty "$tmp" 2>/dev/null; then

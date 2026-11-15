@@ -58,4 +58,14 @@ cmp -s "$PL/installed_plugins.json" "$T/m.bak" && [ ! -d "$PL/cache" ] && ok "dr
 reset; echo 'not json' > "$PL/installed_plugins.json"; run >/dev/null 2>&1; rc=$?
 [ $rc = 0 ] && [ "$(cat "$PL/installed_plugins.json")" = "not json" ] && ok "corrupt manifest untouched" || bad "corrupt manifest untouched"
 
+# 9. excluded plugin with MIXED entries: a stale cross-major entry (leftover
+#    user-scope hcf 1.1.1) must not freeze the same-major one beside it
+#    (pps/lcd 2026-11-15: project 2.0.1 never reached 2.0.2 on restart).
+reset; jq '.plugins["hcf@hcf"] += [{"scope":"user","version":"1.1.1","installPath":"/old-user"}]' "$PL/installed_plugins.json" > "$T/m" && mv "$T/m" "$PL/installed_plugins.json"
+out="$(run)"
+[ "$(ver hcf@hcf project)" = 2.0.1 ] && [ "$(ver hcf@hcf user)" = 1.1.1 ] \
+  && [ "$(jq -r '.plugins["hcf@hcf"][] | select(.scope=="user") | .installPath' "$PL/installed_plugins.json")" = /old-user ] \
+  && echo "$out" | grep -q 'crosses a major' \
+  && ok "excluded mixed: same-major advances, cross-major held" || bad "excluded mixed: same-major advances, cross-major held"
+
 exit $fail
