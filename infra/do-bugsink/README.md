@@ -108,8 +108,9 @@ alone.
 
 ## Log store — VictoriaLogs (added 2026-09-30)
 
-Server/app logs (not exceptions — those stay in bugsink) pushed from Hypernode
-by Vector (pps plan `.claude/plans/log-shipping/`), queried by agents through
+Server/app logs (not exceptions — those stay in bugsink) pushed by Vector from
+the project servers (pps: Hypernode, `deploy/hypernode/`; lcd: Jelastic PHP
+box, `deploy/jelastic/`; added 2026-11-20), queried by agents through
 the fleet `logs-uat` / `logs-prod` MCP entries (host service
 `../mcp-victorialogs/`). Agents never SSH to live to read logs.
 
@@ -126,6 +127,8 @@ the fleet `logs-uat` / `logs-prod` MCP entries (host service
   |---|---|---|---|
   | 1:2 | pps uat | `LOGS_W_PPS_UAT` | `LOGS_R_PPS_UAT` |
   | 1:3 | pps prod | `LOGS_W_PPS_PROD` | `LOGS_R_PPS_PROD` |
+  | 2:2 | lcd uat (Jelastic test box) | `LOGS_W_LCD_UAT` | `LOGS_R_LCD_UAT` |
+  | 2:3 | lcd prod (Jelastic live box) | `LOGS_W_LCD_PROD` | `LOGS_R_LCD_PROD` |
   | 1:1 | (reserved: pps dev, not shipped) | – | – |
 
 - **Tokens** live in `/opt/bugsink/.env` (compose `:?` refs → caddy env →
@@ -161,6 +164,28 @@ the fleet `logs-uat` / `logs-prod` MCP entries (host service
   gitignored, mode 600 — copy to password manager
 - Retention: bugsink defaults keep event counts bounded per project
   (`retention_max_event_count`) — revisit if volume grows
+
+## Uptime monitoring — down alerts (added 2026-11-20)
+
+`scripts/infra-uptime-watch.sh`, every 5 min from the host crontab via
+`monitor.sh uptime` (heartbeat on the dashboard, dead-man in `monitor health`).
+Hosts come from host-local `~/.config/pb-uptime/config.env`, never this repo.
+
+| check | what it proves | alert means |
+|---|---|---|
+| `bugsink-http` | `/health/ready` 200 (app server up; no DB) | droplet / caddy / bugsink down |
+| `bugsink-ingest-<proj>-<env>` | header-only envelope POST per `*_PROD`/`*_UAT` DSN — bugsink reads installation + project quota (DB) before items, creates **no event** | `429` = quota exhausted, every event silently dropped (see 2026-11-01); other code = ingest broken |
+| `logs-<proj>-<env>` | LogsQL count over the last 30m (prod) / 6h (uat) with that tenant's read token; every `LOGS_R_*` in `tokens.env` is picked up automatically | `000`/`5xx` = VictoriaLogs or caddy down; `403` = token not mapped in the Caddyfile; `0 rows` = Vector on that server stalled |
+| `logs-mcp` | host `mcp-victorialogs` answers | AI log reads broken (`docker ps` on the host) |
+| `tls-bugsink`, `tls-logs` | cert ≥ 14 days left (hourly) | caddy renewal failing |
+
+Alerts: 2 consecutive failures → one batched `notify_alert` (desktop + email +
+`~/monitor/alerts.log`), re-alert every 6 h while down, one "recovered" alert.
+State per check in `~/monitor/uptime/`. Limitation: runs on the host, so it is
+silent while the host is off.
+
+First triage when it fires: `ssh root@<droplet>` → `cd /opt/bugsink && docker compose ps`
+→ `docker compose logs --tail 50 <service>` → `free -m; df -h /`.
 
 ## Incident 2026-09-19 — secrets were committed to a public repo
 

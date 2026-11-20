@@ -45,6 +45,7 @@ graphiti-backup $GRAPHITI_BACKUP                         ''               2     
 graphiti-offsite $DIR/backup-offsite.sh                  ''               2        daily
 bugsink-pull   $DIR/bugsink-prod-pull.py                 ''               2        daily
 dep-audit      $DIR/dep-audit.sh                          ''               2        daily
+uptime         $DIR/infra-uptime-watch.sh                 ''               1        5min
 "
 
 job_field() { echo "$JOBS" | awk -v n="$1" -v f="$2" '$1==n{print $f}'; }
