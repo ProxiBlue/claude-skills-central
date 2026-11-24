@@ -178,6 +178,15 @@
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/lucas/claude-skills-central/hooks/peer-message-guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
