@@ -1,0 +1,50 @@
+# pb-graphiti ingest-sessions map: <transcript-root>|<project-glob>|<group_id>
+# Read by pb-graphiti scripts/cron/ingest-sessions-map.sh (host cron, one line).
+# Earlier lines get the nightly chunk budget first; newest sessions first within a line.
+# group '-' = deliberately not ingested. Group ids follow the hooks: DDEV name inside
+# containers, git toplevel basename on the host, 'host' for non-repo host dirs.
+
+# --- small host-side projects -------------------------------------------------------
+~/.claude/projects|-home-lucas-workspace-ittools-HostingEnvironment|hostingenvironment
+~/.claude/projects|-home-lucas-workspace-proxiblue-chess-arm|chess_arm
+~/.claude/projects|-home-lucas-workspace-proxiblue-mageos-magento2|mageos-magento2
+~/.claude/projects|-home-lucas-workspace-proxiblue-pb-codegraph-intent-spike|pb-codegraph-intent-spike
+~/.claude/projects|-home-lucas-workspace-proxiblue-pb-paperclip|pb-paperclip
+~/.claude/projects|-home-lucas-workspace-proxiblue-static-sites|static_sites
+~/workspace/ittools/ihop/.ddev/claude-code/.claude/projects|-var-www-html*|ihop
+~/workspace/proxiblue/ahhgg/.ddev/claude-code/.claude/projects|-var-www-html*|ahhgg
+~/workspace/proxiblue/ai_assistant/.ddev/claude-code/.claude/projects|-var-www-html*|webhooks
+
+# --- host shell + non-repo host dirs -> host ------------------------------------------
+~/.claude/projects|-home-lucas|host
+~/.claude/projects|-home-lucas-workspace|host
+~/.claude/projects|-home-lucas-claude-*|host
+~/.claude/projects|-tmp-claude-1000-*|host
+~/.claude/projects|-home-large-3d-models-light-frame|host
+~/.claude/projects|-home-large-Documents|host
+~/.claude/projects|-home-lucas-workspace-cricut-docker|host
+~/.claude/projects|-home-lucas-workspace-ittools-duty-of-care|host
+~/.claude/projects|-home-lucas-workspace-p1s-enclosure*|host
+~/.claude/projects|-home-lucas-workspace-proxiblue|host
+~/.claude/projects|-home-lucas-workspace-proxiblue-bluebird-charity|host
+~/.claude/projects|-home-lucas-workspace-proxiblue-comps|host
+~/.claude/projects|-home-lucas-workspace-proxiblue-curtain-bot-gear*|host
+
+# --- big projects (host dirs + container roots) ---------------------------------------
+~/.claude/projects|-home-lucas-workspace-uptactics-pvcpipesupplies*|pvcpipesupplies
+# Loki #465 isolation tests -> pvcpipesupplies (Lucas 2026-11-25).
+~/.claude/projects|-home-lucas-workspace-uptactics-465isolationtests|pvcpipesupplies
+~/workspace/uptactics/pvcpipesupplies/.ddev/claude-code/.claude/projects|-var-www-html*|pvcpipesupplies
+~/.claude/projects|-home-lucas-workspace-ittools-lcdscreen-mageos*|lcd-mageos
+~/workspace/ittools/lcdscreen_mageos/.ddev/claude-code/.claude/projects|-var-www-html*|lcd-mageos
+~/.claude/projects|-home-lucas-workspace-proxiblue-PdfToVec*|pdftovec
+~/workspace/proxiblue/PdfToVec/.ddev/claude-code/.claude/projects|-var-www-html*|pdftovec
+
+# --- not ingested ---------------------------------------------------------------------
+# billing / banking: financial data, billing is on the fleet-sweep exclusion list. Lucas: keep out (2026-11-25).
+~/.claude/projects|-home-lucas-workspace-proxiblue-billing|-
+~/.claude/projects|-home-lucas-workspace-proxiblue-banking|-
+# devdocs-in-graphiti was abandoned (2026-09).
+~/.claude/projects|-home-lucas-workspace-proxiblue-mage-os-devdocs|-
+# rule-evals sandboxes.
+~/.claude/projects|-tmp-rule-evals-*|-
